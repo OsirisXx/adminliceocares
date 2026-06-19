@@ -107,7 +107,7 @@ const SubmitComplaint = () => {
 
     // Validate attachment is provided
     if (!attachment) {
-      setError("Please upload an image as evidence for your complaint");
+      setError("Please upload an image as evidence for your feedback");
       setLoading(false);
       return;
     }
@@ -155,8 +155,8 @@ const SubmitComplaint = () => {
       if (insertedComplaint) {
         await supabase.from("audit_trail").insert({
           complaint_id: insertedComplaint.id,
-          action: "Complaint Submitted",
-          details: `New ${formData.category} complaint submitted${formData.isAnonymous ? " anonymously" : ` by ${formData.name}`}`,
+          action: "Feedback Submitted",
+          details: `New ${formData.category} feedback submitted${formData.isAnonymous ? " anonymously" : ` by ${formData.name}`}`,
         });
       }
 
@@ -164,7 +164,7 @@ const SubmitComplaint = () => {
       setSuccess(true);
     } catch (err) {
       console.error("Submit error:", err);
-      setError(err.message || "Failed to submit complaint. Please try again.");
+      setError(err.message || "Failed to submit feedback. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -185,10 +185,10 @@ const SubmitComplaint = () => {
               <CheckCircle size={40} className="text-green-600" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Complaint Submitted!
+              Feedback Submitted!
             </h2>
             <p className="text-gray-600 mb-6">
-              Your complaint has been successfully submitted. Please save your
+              Your feedback has been successfully submitted. Please save your
               reference number to track the status.
             </p>
 
@@ -221,7 +221,7 @@ const SubmitComplaint = () => {
                 onClick={() => navigate("/track")}
                 className="block w-full bg-maroon-800 text-white py-3 px-4 rounded-xl font-semibold hover:bg-maroon-700 transition-all duration-200"
               >
-                Track Your Complaint
+                Track Your Feedback
               </button>
               <button
                 onClick={() => navigate("/")}
@@ -245,7 +245,7 @@ const SubmitComplaint = () => {
             <FileText size={32} className="text-gold-400" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Submit a Complaint
+            Submit a Feedback
           </h1>
           <p className="text-gray-600 mt-2">
             Fill out the form below to submit your concern
@@ -283,7 +283,7 @@ const SubmitComplaint = () => {
                 </div>
               </label>
               <p className="text-sm text-gray-500 mt-2 ml-8">
-                Your name will be hidden from the complaint if checked
+                Your name will be hidden from the feedback if checked
               </p>
             </div>
 
@@ -500,7 +500,7 @@ const SubmitComplaint = () => {
               ) : (
                 <>
                   <Send size={20} />
-                  <span>Submit Complaint</span>
+                  <span>Submit Feedback</span>
                 </>
               )}
             </button>

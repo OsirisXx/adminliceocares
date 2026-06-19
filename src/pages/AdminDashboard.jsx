@@ -619,7 +619,7 @@ const AdminDashboard = () => {
                 Complaints Overview
               </h3>
               <p className="text-sm text-gray-500">
-                Showing complaint statistics by status
+                Showing feedback statistics by status
               </p>
             </div>
             <div className="flex flex-wrap gap-1">
@@ -1520,16 +1520,16 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                {/* Complaint Evidence Image */}
+                {/* Feedback Evidence Image */}
                 {selectedComplaint.attachment_url && (
                   <div>
                     <p className="text-sm text-gray-500 mb-2">
-                      Complaint Evidence
+                      Feedback Evidence
                     </p>
                     <div className="bg-gray-50 rounded-xl p-4">
                       <img
                         src={selectedComplaint.attachment_url}
-                        alt="Complaint Evidence"
+                        alt="Feedback Evidence"
                         className="max-h-64 rounded-lg border border-gray-200 mb-2"
                       />
                       <a

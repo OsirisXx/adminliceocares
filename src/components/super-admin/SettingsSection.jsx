@@ -55,6 +55,7 @@ const SettingsSection = ({ settings, onSaveSettings, loading }) => {
     maintenanceMode: settings?.maintenanceMode ?? false,
     publicRegistration: settings?.publicRegistration ?? true,
     autoBackup: settings?.autoBackup ?? true,
+    allowGuestLogin: settings?.allowGuestLogin ?? true,
   });
 
   const [saving, setSaving] = useState(false);
@@ -180,6 +181,12 @@ const SettingsSection = ({ settings, onSaveSettings, loading }) => {
               description="Allow public user registration"
               enabled={localSettings.publicRegistration}
               onChange={(v) => updateSetting("publicRegistration", v)}
+            />
+            <ToggleSetting
+              label="Allow Guest Login"
+              description="Allow students to login as guests without Google Auth"
+              enabled={localSettings.allowGuestLogin}
+              onChange={(v) => updateSetting("allowGuestLogin", v)}
             />
           </div>
         </SettingCard>

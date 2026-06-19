@@ -53,10 +53,30 @@ const Layout = ({ children }) => {
 
     try {
       let notifs = [];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
 
+      // Fetch from system_notifications (RLS bypassed using bulletproof RPC)
+      const { data: sysNotifs, error: sysError } = await supabase
+        .rpc("get_my_notifications");
+
+      if (sysError) {
+        console.error("Error fetching system notifications:", sysError);
+      } else if (sysNotifs) {
+        notifs = sysNotifs.map(n => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          message: n.message,
+          time: n.created_at,
+          read: n.is_read,
+          reference_id: n.reference_id
+        }));
+      }
+
+      // For super_admin, we still append today's audit logs as virtual notifications
       if (userRole === "super_admin") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
         const { data: auditData } = await supabase
           .from("system_audit_log")
           .select("*")
@@ -65,7 +85,7 @@ const Layout = ({ children }) => {
           .limit(10);
 
         if (auditData) {
-          notifs = auditData.map((a) => ({
+          const auditNotifs = auditData.map((a) => ({
             id: a.id,
             type: "audit",
             title: a.action,
@@ -73,43 +93,7 @@ const Layout = ({ children }) => {
             time: a.created_at,
             read: false,
           }));
-        }
-      } else if (userRole === "admin") {
-        const { data: pendingComplaints } = await supabase
-          .from("complaints")
-          .select("id, reference_number, category, created_at")
-          .eq("status", "submitted")
-          .order("created_at", { ascending: false })
-          .limit(10);
-
-        if (pendingComplaints) {
-          notifs = pendingComplaints.map((c) => ({
-            id: c.id,
-            type: "complaint",
-            title: "New Complaint",
-            message: `${c.reference_number} - ${c.category}`,
-            time: c.created_at,
-            read: false,
-          }));
-        }
-      } else if (userRole === "department" && userDepartment) {
-        const { data: assignedComplaints } = await supabase
-          .from("complaints")
-          .select("id, reference_number, category, created_at, status")
-          .eq("assigned_department", userDepartment)
-          .in("status", ["verified", "in_progress"])
-          .order("created_at", { ascending: false })
-          .limit(10);
-
-        if (assignedComplaints) {
-          notifs = assignedComplaints.map((c) => ({
-            id: c.id,
-            type: "assigned",
-            title: c.status === "verified" ? "New Assignment" : "In Progress",
-            message: `${c.reference_number} - ${c.category}`,
-            time: c.created_at,
-            read: false,
-          }));
+          notifs = [...notifs, ...auditNotifs].sort((a, b) => new Date(b.time) - new Date(a.time));
         }
       }
 
@@ -117,6 +101,43 @@ const Layout = ({ children }) => {
       setUnreadCount(notifs.length);
     } catch (err) {
       console.error("Error fetching notifications:", err);
+    }
+  };
+
+  const handleNotificationClick = async (notificationId, type, message) => {
+    // Optimistically mark as read and update state
+    handleMarkAsRead(notificationId, type);
+    
+    // Extract reference number and navigate
+    if (type !== 'audit' && message) {
+      const match = message.match(/LDCU-[A-Z0-9]+-[A-Z0-9]+/);
+      if (match) {
+        navigate(`/ticket/${match[0]}`);
+      }
+    }
+  };
+
+  const handleMarkAsRead = async (notificationId, type) => {
+    // Audit logs are virtual and cannot be marked as read in the DB
+    if (type === 'audit') return;
+
+    try {
+      // Optimistic update
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+
+      const { error } = await supabase
+        .from('system_notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Error marking notification as read:', error);
+        // If it fails, fetch again to restore state
+        fetchNotifications();
+      }
+    } catch (err) {
+      console.error('Error in handleMarkAsRead:', err);
     }
   };
 
@@ -166,9 +187,9 @@ const Layout = ({ children }) => {
                 <span className="text-maroon-800 font-bold text-lg">L</span>
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-bold">Liceo 8888</h1>
+                <h1 className="text-lg font-bold">Liceo Cares</h1>
                 <p className="text-xs text-gold-300">
-                  Complaint Management System
+                  Feedback Management System
                 </p>
               </div>
             </Link>
@@ -271,11 +292,19 @@ const Layout = ({ children }) => {
                           notifications.map((notif) => (
                             <div
                               key={notif.id}
-                              className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                              onClick={() => handleNotificationClick(notif.id, notif.type, notif.message)}
+                              className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors group relative"
                             >
-                              <p className="font-medium text-gray-900 text-sm">
-                                {notif.title}
-                              </p>
+                              <div className="flex justify-between items-start">
+                                <p className="font-medium text-gray-900 text-sm">
+                                  {notif.title}
+                                </p>
+                                {notif.type !== 'audit' && (
+                                  <span className="text-xs text-maroon-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap ml-2">
+                                    Mark read
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-gray-600 text-xs truncate">
                                 {notif.message}
                               </p>
@@ -431,12 +460,12 @@ const Layout = ({ children }) => {
               <div>
                 <p className="font-semibold">Liceo de Cagayan University</p>
                 <p className="text-sm text-gray-400">
-                  Complaint Management System
+                  Feedback Management System
                 </p>
               </div>
             </div>
             <div className="text-sm text-gray-400">
-              © {new Date().getFullYear()} Liceo 8888. All rights reserved.
+              © {new Date().getFullYear()} Liceo Cares. All rights reserved.
             </div>
           </div>
         </div>

@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         const resend = new Resend(apiKey);
 
         const { data, error } = await resend.emails.send({
-            from: "Liceo 8888 <noreply@citattendance.info>",
+            from: "Liceo Cares <noreply@citattendance.info>",
             to: Array.isArray(to) ? to : [to],
             subject,
             html,

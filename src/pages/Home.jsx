@@ -162,7 +162,7 @@ const Home = () => {
     setError("");
 
     if (!complaint.trim()) {
-      setError("Please enter your complaint");
+      setError("Please enter your feedback");
       return;
     }
     if (!category) {
@@ -177,7 +177,7 @@ const Home = () => {
 
       if (!allowed) {
         setError(
-          "You have already submitted a complaint today. Please try again tomorrow."
+          "You have already submitted a feedback today. Please try again tomorrow."
         );
         setLoading(false);
         return;
@@ -228,7 +228,7 @@ const Home = () => {
       setShowPopup(true);
     } catch (err) {
       console.error("Submit error:", err);
-      setError(err.message || "Failed to submit complaint. Please try again.");
+      setError(err.message || "Failed to submit feedback. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -239,7 +239,7 @@ const Home = () => {
       icon: FileText,
       title: "Submit Complaints",
       description:
-        "Easily submit your concerns through our streamlined complaint form. Anonymous submissions are welcome.",
+        "Easily submit your concerns through our streamlined feedback form. Anonymous submissions are welcome.",
       color: "bg-maroon-800",
     },
     {
@@ -253,7 +253,7 @@ const Home = () => {
       icon: Clock,
       title: "Track Progress",
       description:
-        "Monitor your complaint status in real-time using your unique reference number.",
+        "Monitor your feedback status in real-time using your unique reference number.",
       color: "bg-maroon-800",
     },
     {
@@ -269,17 +269,17 @@ const Home = () => {
     {
       number: "01",
       title: "Submit",
-      description: "Fill out the complaint form with your concerns",
+      description: "Fill out the feedback form with your concerns",
     },
     {
       number: "02",
       title: "Verify",
-      description: "Admin reviews and verifies your complaint",
+      description: "Admin reviews and verifies your feedback",
     },
     {
       number: "03",
       title: "Assign",
-      description: "Complaint is forwarded to the relevant department",
+      description: "Feedback is forwarded to the relevant department",
     },
     {
       number: "04",
@@ -308,8 +308,8 @@ const Home = () => {
               Your Voice <span className="text-gold-400">Matters</span>
             </h1>
             <p className="text-lg md:text-xl text-gray-300 mb-8">
-              Liceo 8888 is your dedicated platform for submitting and tracking
-              complaints. We ensure every concern is heard, verified, and
+              Liceo Cares is your dedicated platform for submitting and tracking
+              feedback. We ensure every concern is heard, verified, and
               resolved efficiently.
             </p>
 
@@ -339,7 +339,7 @@ const Home = () => {
                     onChange={(e) => setComplaint(e.target.value)}
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}
-                    placeholder="Type your complaint here... What concern would you like to share?"
+                    placeholder="Type your feedback here... What concern would you like to share?"
                     rows={3}
                     className="w-full bg-transparent text-white placeholder-gray-300 focus:outline-none resize-none"
                   />
@@ -442,7 +442,7 @@ const Home = () => {
                 className="inline-flex items-center space-x-2 text-gold-300 hover:text-gold-400 transition-colors"
               >
                 <Search size={18} />
-                <span>Already submitted? Track your complaint</span>
+                <span>Already submitted? Track your feedback</span>
               </Link>
             </div>
           </div>
@@ -466,10 +466,10 @@ const Home = () => {
                 <CheckCircle size={32} className="text-green-600" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Complaint Submitted!
+                Feedback Submitted!
               </h2>
               <p className="text-gray-600 mb-6">
-                Your complaint has been received. Save your tracking number
+                Your feedback has been received. Save your tracking number
                 below.
               </p>
 
@@ -589,7 +589,7 @@ const Home = () => {
                   className="inline-flex items-center justify-center space-x-2 bg-maroon-800 text-white px-6 py-3 rounded-xl font-semibold hover:bg-maroon-700 transition-all"
                 >
                   <Search size={18} />
-                  <span>Track Your Complaint</span>
+                  <span>Track Your Feedback</span>
                 </Link>
                 <button
                   onClick={closePopup}
@@ -608,10 +608,10 @@ const Home = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Why Use <span className="text-maroon-800">Liceo 8888</span>?
+              Why Use <span className="text-maroon-800">Liceo Cares</span>?
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Our complaint management system is designed to provide a
+              Our feedback management system is designed to provide a
               transparent and efficient way to address your concerns.
             </p>
           </div>
@@ -672,10 +672,10 @@ const Home = () => {
       <section className="py-20 bg-maroon-800">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            Need to Track Your Complaint?
+            Need to Track Your Feedback?
           </h2>
           <p className="text-lg text-gray-300 mb-8">
-            Already submitted a complaint? Use your tracking number to check the
+            Already submitted a feedback? Use your tracking number to check the
             status and get updates on your concern.
           </p>
           <Link
@@ -683,7 +683,7 @@ const Home = () => {
             className="inline-flex items-center space-x-2 bg-gold-500 text-maroon-900 px-8 py-4 rounded-xl font-semibold hover:bg-gold-400 transition-all duration-200 shadow-lg"
           >
             <Search size={20} />
-            <span>Track Your Complaint</span>
+            <span>Track Your Feedback</span>
           </Link>
         </div>
       </section>

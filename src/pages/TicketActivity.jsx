@@ -82,7 +82,7 @@ const TicketActivity = () => {
       // Fetch all comments (admin/department can see internal ones)
       await fetchComments(data.id);
     } catch (err) {
-      console.error("Error fetching complaint:", err);
+      console.error("Error fetching feedback:", err);
     } finally {
       setLoading(false);
     }

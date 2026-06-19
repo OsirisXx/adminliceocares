@@ -1,8 +1,8 @@
-// Resend Email Service for Liceo 8888 Ticketing System
+// Resend Email Service for Liceo Cares Ticketing System
 // Uses Resend API to send email notifications
 
 const RESEND_API_KEY = import.meta.env.VITE_RESEND_API_KEY;
-const FROM_EMAIL = "Liceo 8888 <noreply@citattendance.info>";
+const FROM_EMAIL = "Liceo Cares <noreply@citattendance.info>";
 
 // Liceo de Cagayan University Colors
 const COLORS = {
@@ -32,10 +32,10 @@ const generateEmailTemplate = ({ title, greeting, content, footer }) => `
           <tr>
             <td style="background: linear-gradient(135deg, ${COLORS.maroon} 0%, ${COLORS.lightMaroon} 100%); padding: 30px 40px; text-align: center;">
               <h1 style="margin: 0; color: ${COLORS.gold}; font-size: 28px; font-weight: bold;">
-                🎓 Liceo 8888
+                🎓 Liceo Cares
               </h1>
               <p style="margin: 8px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">
-                Liceo de Cagayan University Complaint Management System
+                Liceo de Cagayan University Feedback Management System
               </p>
             </td>
           </tr>
@@ -64,7 +64,7 @@ const generateEmailTemplate = ({ title, greeting, content, footer }) => `
             <td style="background-color: #f8f8f8; padding: 25px 40px; border-top: 1px solid #eee;">
               ${footer || `
                 <p style="margin: 0; color: #666; font-size: 13px; text-align: center;">
-                  This is an automated message from Liceo 8888 Complaint Management System.<br>
+                  This is an automated message from Liceo Cares Feedback Management System.<br>
                   Please do not reply to this email.
                 </p>
                 <p style="margin: 15px 0 0 0; color: #999; font-size: 12px; text-align: center;">
@@ -182,12 +182,12 @@ export const sendTicketConfirmationEmail = async ({
       : description;
 
   const html = generateEmailTemplate({
-    title: "Complaint Submitted Successfully",
-    greeting: "Thank you for submitting your complaint to Liceo 8888.",
+    title: "Feedback Submitted Successfully",
+    greeting: "Thank you for submitting your feedback to Liceo Cares.",
     content: `
       <p style="margin: 0 0 15px 0; color: #555; font-size: 15px; line-height: 1.6;">
-        We have received your complaint and it is now pending review by the VP Admin. 
-        You will receive email updates as your complaint progresses through our system.
+        We have received your feedback and it is now pending review by the VP Admin. 
+        You will receive email updates as your feedback progresses through our system.
       </p>
       
       ${ticketReferenceBox(referenceNumber)}
@@ -206,21 +206,21 @@ export const sendTicketConfirmationEmail = async ({
         <strong>What happens next?</strong>
       </p>
       <ol style="margin: 10px 0; padding-left: 20px; color: #666; font-size: 14px; line-height: 1.8;">
-        <li>Your complaint will be reviewed by the VP Admin</li>
+        <li>Your feedback will be reviewed by the VP Admin</li>
         <li>If verified, it will be assigned to the appropriate department</li>
         <li>The department will work on resolving your concern</li>
         <li>You'll receive updates at each step of the process</li>
       </ol>
       
       <p style="margin: 20px 0 0 0; color: #888; font-size: 13px; text-align: center;">
-        Save your tracking number to check the status of your complaint anytime.
+        Save your tracking number to check the status of your feedback anytime.
       </p>
     `,
   });
 
   return sendEmail({
     to,
-    subject: `[Liceo 8888] Complaint Received - ${referenceNumber}`,
+    subject: `[Liceo Cares] Feedback Received - ${referenceNumber}`,
     html,
   });
 };
@@ -235,11 +235,11 @@ export const sendTicketVerifiedEmail = async ({
   adminRemarks,
 }) => {
   const html = generateEmailTemplate({
-    title: "Complaint Verified & Assigned",
-    greeting: "Good news! Your complaint has been verified.",
+    title: "Feedback Verified & Assigned",
+    greeting: "Good news! Your feedback has been verified.",
     content: `
       <p style="margin: 0 0 15px 0; color: #555; font-size: 15px; line-height: 1.6;">
-        The VP Admin has reviewed and verified your complaint. It has now been 
+        The VP Admin has reviewed and verified your feedback. It has now been 
         forwarded to the appropriate department for action.
       </p>
       
@@ -265,7 +265,7 @@ export const sendTicketVerifiedEmail = async ({
       </div>
       
       <p style="margin: 20px 0 0 0; color: #555; font-size: 14px;">
-        The assigned department will now review your complaint and begin working 
+        The assigned department will now review your feedback and begin working 
         on a resolution. You will receive another update when they start processing 
         your concern.
       </p>
@@ -274,7 +274,7 @@ export const sendTicketVerifiedEmail = async ({
 
   return sendEmail({
     to,
-    subject: `[Liceo 8888] Complaint Verified - ${referenceNumber}`,
+    subject: `[Liceo Cares] Feedback Verified - ${referenceNumber}`,
     html,
   });
 };
@@ -288,11 +288,11 @@ export const sendTicketRejectedEmail = async ({
   reason,
 }) => {
   const html = generateEmailTemplate({
-    title: "Complaint Could Not Be Processed",
-    greeting: "Thank you for reaching out to Liceo 8888.",
+    title: "Feedback Could Not Be Processed",
+    greeting: "Thank you for reaching out to Liceo Cares.",
     content: `
       <p style="margin: 0 0 15px 0; color: #555; font-size: 15px; line-height: 1.6;">
-        After careful review, we regret to inform you that your complaint could not 
+        After careful review, we regret to inform you that your feedback could not 
         be processed at this time.
       </p>
       
@@ -311,8 +311,8 @@ export const sendTicketRejectedEmail = async ({
       
       <p style="margin: 20px 0 0 0; color: #555; font-size: 14px;">
         If you believe this decision was made in error, or if you have additional 
-        information to support your complaint, you are welcome to submit a new 
-        complaint with more details.
+        information to support your feedback, you are welcome to submit a new 
+        feedback with more details.
       </p>
       
       <p style="margin: 15px 0 0 0; color: #888; font-size: 13px;">
@@ -324,7 +324,7 @@ export const sendTicketRejectedEmail = async ({
 
   return sendEmail({
     to,
-    subject: `[Liceo 8888] Complaint Update - ${referenceNumber}`,
+    subject: `[Liceo Cares] Feedback Update - ${referenceNumber}`,
     html,
   });
 };
@@ -339,11 +339,11 @@ export const sendTicketInProgressEmail = async ({
   remarks,
 }) => {
   const html = generateEmailTemplate({
-    title: "Work Has Started on Your Complaint",
-    greeting: "Your complaint is now being actively addressed.",
+    title: "Work Has Started on Your Feedback",
+    greeting: "Your feedback is now being actively addressed.",
     content: `
       <p style="margin: 0 0 15px 0; color: #555; font-size: 15px; line-height: 1.6;">
-        The ${department} department has started working on your complaint. 
+        The ${department} department has started working on your feedback. 
         Our team is actively reviewing the situation and working toward a resolution.
       </p>
       
@@ -366,7 +366,7 @@ export const sendTicketInProgressEmail = async ({
       }
       
       <p style="margin: 20px 0 0 0; color: #555; font-size: 14px;">
-        We will notify you once your complaint has been resolved. Thank you for 
+        We will notify you once your feedback has been resolved. Thank you for 
         your patience as we work to address your concern.
       </p>
     `,
@@ -374,7 +374,7 @@ export const sendTicketInProgressEmail = async ({
 
   return sendEmail({
     to,
-    subject: `[Liceo 8888] Complaint In Progress - ${referenceNumber}`,
+    subject: `[Liceo Cares] Feedback In Progress - ${referenceNumber}`,
     html,
   });
 };
@@ -422,11 +422,11 @@ export const sendTicketStatusChangedEmail = async ({
   remarks,
 }) => {
   const html = generateEmailTemplate({
-    title: "Complaint Status Updated",
-    greeting: "Your complaint status has been updated.",
+    title: "Feedback Status Updated",
+    greeting: "Your feedback status has been updated.",
     content: `
       <p style="margin: 0 0 15px 0; color: #555; font-size: 15px; line-height: 1.6;">
-        The status of your complaint has been changed.
+        The status of your feedback has been changed.
       </p>
       
       ${ticketReferenceBox(referenceNumber)}
@@ -464,14 +464,14 @@ export const sendTicketStatusChangedEmail = async ({
       
       <p style="margin: 20px 0 0 0; color: #555; font-size: 14px;">
         If you have any questions about this status change, please contact the 
-        administration office or track your complaint online.
+        administration office or track your feedback online.
       </p>
     `,
   });
 
   return sendEmail({
     to,
-    subject: `[Liceo 8888] Status Updated to ${newStatus} - ${referenceNumber}`,
+    subject: `[Liceo Cares] Status Updated to ${newStatus} - ${referenceNumber}`,
     html,
   });
 };
@@ -485,14 +485,14 @@ export const sendTicketResolvedEmail = async ({
   resolutionDetails,
   departmentRemarks,
 }) => {
-  const trackingUrl = `https://liceo8888.vercel.app/track`;
+  const trackingUrl = `https://liceo-cares.vercel.app/track`;
   
   const html = generateEmailTemplate({
-    title: "Your Complaint Has Been Resolved",
-    greeting: "Great news! Your complaint has been successfully resolved.",
+    title: "Your Feedback Has Been Resolved",
+    greeting: "Great news! Your feedback has been successfully resolved.",
     content: `
       <p style="margin: 0 0 15px 0; color: #555; font-size: 15px; line-height: 1.6;">
-        We're pleased to inform you that your complaint has been addressed and 
+        We're pleased to inform you that your feedback has been addressed and 
         resolved by our team.
       </p>
       
@@ -544,7 +544,7 @@ export const sendTicketResolvedEmail = async ({
       
       <div style="text-align: center; margin: 25px 0 0 0; padding-top: 20px; border-top: 1px solid #eee;">
         <p style="margin: 0; color: ${COLORS.maroon}; font-size: 16px; font-weight: 600;">
-          Thank you for using Liceo 8888!
+          Thank you for using Liceo Cares!
         </p>
         <p style="margin: 8px 0 0 0; color: #888; font-size: 13px;">
           Together, we make Liceo a better place.
@@ -555,7 +555,7 @@ export const sendTicketResolvedEmail = async ({
 
   return sendEmail({
     to,
-    subject: `[Liceo 8888] Complaint Resolved - Action Required - ${referenceNumber}`,
+    subject: `[Liceo Cares] Feedback Resolved - Action Required - ${referenceNumber}`,
     html,
   });
 };

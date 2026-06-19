@@ -1,5 +1,8 @@
--- Liceo 8888 Complaint Management System
+-- Liceo Cares Feedback Management System
 -- Supabase Database Schema
+-- 
+-- NOTE: In the UI, "complaints" are now referred to as "feedback", 
+-- but the underlying database tables and columns retain the "complaint" naming convention.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

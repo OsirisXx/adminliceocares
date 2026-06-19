@@ -245,7 +245,7 @@ const DepartmentDashboard = () => {
         details: `${staffName ? `Assigned to ${staffName}. ` : ""}${
           departmentRemarks
             ? `Remarks: ${departmentRemarks}`
-            : "Department started working on the complaint"
+            : "Department started working on the feedback"
         }`,
       });
 
@@ -266,8 +266,8 @@ const DepartmentDashboard = () => {
       setSelectedStaff("");
       fetchComplaints();
     } catch (err) {
-      console.error("Error updating complaint:", err);
-      alert("Failed to update complaint");
+      console.error("Error updating feedback:", err);
+      alert("Failed to update feedback");
     } finally {
       setActionLoading(false);
     }
@@ -334,11 +334,11 @@ const DepartmentDashboard = () => {
 
       await supabase.from("audit_trail").insert({
         complaint_id: selectedComplaint.id,
-        action: "Complaint Resolved",
+        action: "Feedback Resolved",
         performed_by: user.id,
         details: resolutionDetails
           ? `Resolution: ${resolutionDetails}`
-          : "Complaint marked as resolved",
+          : "Feedback marked as resolved",
       });
 
       // Send email notification if user provided email
@@ -358,8 +358,8 @@ const DepartmentDashboard = () => {
       setResolutionImage(null);
       fetchComplaints();
     } catch (err) {
-      console.error("Error resolving complaint:", err);
-      alert("Failed to resolve complaint");
+      console.error("Error resolving feedback:", err);
+      alert("Failed to resolve feedback");
     } finally {
       setActionLoading(false);
     }
@@ -610,7 +610,7 @@ const DepartmentDashboard = () => {
                 Complaints Overview
               </h3>
               <p className="text-sm text-gray-500">
-                Showing complaint statistics by status
+                Showing feedback statistics by status
               </p>
             </div>
             <div className="flex flex-wrap gap-1">
@@ -1448,7 +1448,7 @@ const DepartmentDashboard = () => {
               <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">
-                    Complaint Details
+                    Feedback Details
                   </h2>
                   <p className="text-sm text-gray-500 font-mono">
                     {selectedComplaint.reference_number}
@@ -1599,16 +1599,16 @@ const DepartmentDashboard = () => {
                   </div>
                 )}
 
-                {/* Complaint Evidence Image */}
+                {/* Feedback Evidence Image */}
                 {selectedComplaint.attachment_url && (
                   <div>
                     <p className="text-sm text-gray-500 mb-2">
-                      Complaint Evidence
+                      Feedback Evidence
                     </p>
                     <div className="bg-gray-50 rounded-xl p-4">
                       <img
                         src={selectedComplaint.attachment_url}
-                        alt="Complaint Evidence"
+                        alt="Feedback Evidence"
                         className="max-h-64 rounded-lg border border-gray-200 mb-2"
                       />
                       <a
@@ -1703,7 +1703,7 @@ const DepartmentDashboard = () => {
                 {selectedComplaint.status === "in_progress" && (
                   <div className="border-t border-gray-100 pt-6">
                     <h3 className="font-semibold text-gray-900 mb-4">
-                      Resolve Complaint
+                      Resolve Feedback
                     </h3>
 
                     {/* Resolution Details */}
@@ -1717,7 +1717,7 @@ const DepartmentDashboard = () => {
                         onChange={(e) => setResolutionDetails(e.target.value)}
                         rows={4}
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
-                        placeholder="Describe how the complaint was resolved..."
+                        placeholder="Describe how the feedback was resolved..."
                       />
                     </div>
 

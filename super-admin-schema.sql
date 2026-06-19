@@ -1,6 +1,9 @@
 -- =====================================================
 -- SUPER ADMIN FEATURES DATABASE SCHEMA
 -- Run this SQL in your Supabase SQL Editor
+-- 
+-- NOTE: In the UI, "complaints" are now referred to as "feedback", 
+-- but the underlying database tables and columns retain the "complaint" naming convention.
 -- =====================================================
 
 -- 1. Update users table to include super_admin role
@@ -8,21 +11,13 @@ ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check 
   CHECK (role IN ('admin', 'department', 'super_admin'));
 
--- 2. Create departments table for managing departments
-CREATE TABLE IF NOT EXISTS departments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name VARCHAR(100) NOT NULL UNIQUE,
-  slug VARCHAR(50) NOT NULL UNIQUE,
-  description TEXT,
-  head_name VARCHAR(255),
-  head_email VARCHAR(255),
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- 2. Update departments table for managing departments
+ALTER TABLE departments
+  ADD COLUMN IF NOT EXISTS head_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS head_email VARCHAR(255);
 
 -- Insert default departments
-INSERT INTO departments (name, slug, description, is_active) VALUES
+INSERT INTO departments (name, code, description, is_active) VALUES
   ('Academic Affairs', 'academic', 'Handles academic-related concerns and inquiries', TRUE),
   ('Facilities Management', 'facilities', 'Manages campus facilities and maintenance', TRUE),
   ('Finance Office', 'finance', 'Handles financial matters and billing concerns', TRUE),
@@ -30,7 +25,7 @@ INSERT INTO departments (name, slug, description, is_active) VALUES
   ('Security Office', 'security', 'Handles security and safety concerns', TRUE),
   ('Registrar', 'registrar', 'Manages student records and registration', TRUE),
   ('Student Affairs', 'student_affairs', 'Handles student welfare and activities', TRUE)
-ON CONFLICT (slug) DO NOTHING;
+ON CONFLICT (code) DO NOTHING;
 
 -- 3. Create login_sessions table for tracking logins
 CREATE TABLE IF NOT EXISTS login_sessions (
@@ -147,7 +142,7 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
   ('allow_anonymous_complaints', 'true', 'boolean', 'Allow anonymous complaint submissions'),
   ('require_email_verification', 'false', 'boolean', 'Require email verification for complaints'),
   ('max_attachment_size_mb', '5', 'number', 'Maximum attachment size in MB'),
-  ('system_name', 'Liceo 8888 Complaint System', 'string', 'System display name')
+  ('system_name', 'Liceo Cares Feedback System', 'string', 'System display name')
 ON CONFLICT (setting_key) DO NOTHING;
 
 -- 9. Enable RLS on new tables

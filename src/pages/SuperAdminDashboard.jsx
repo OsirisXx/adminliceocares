@@ -236,6 +236,34 @@ const SuperAdminDashboard = () => {
     }
   }, []);
 
+  // Fetch settings
+  const fetchSettings = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("*")
+        .single();
+
+      if (error) {
+        console.error("Error fetching settings:", err);
+        return;
+      }
+      if (data) {
+        setSettings({
+          emailNotifications: data.email_notifications,
+          auditLogging: data.audit_logging,
+          twoFactorAuth: data.two_factor_auth,
+          maintenanceMode: data.maintenance_mode,
+          publicRegistration: data.public_registration,
+          autoBackup: data.auto_backup,
+          allowGuestLogin: data.allow_guest_login,
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching settings:", err);
+    }
+  }, []);
+
   // Initial data fetch
   useEffect(() => {
     const loadData = async () => {
@@ -249,6 +277,7 @@ const SuperAdminDashboard = () => {
         fetchLoginSessions(),
         fetchRateLimits(),
         fetchBlockedIPs(),
+        fetchSettings(),
       ]);
       setLoading(false);
     };
@@ -262,6 +291,7 @@ const SuperAdminDashboard = () => {
     fetchLoginSessions,
     fetchRateLimits,
     fetchBlockedIPs,
+    fetchSettings,
   ]);
 
   // Handle logout
@@ -485,9 +515,29 @@ const SuperAdminDashboard = () => {
 
   // Settings save
   const handleSaveSettings = async (newSettings) => {
-    setSettings(newSettings);
-    // In real app, save to database
-    console.log("Settings saved:", newSettings);
+    try {
+      const { error } = await supabase
+        .from("system_settings")
+        .update({
+          email_notifications: newSettings.emailNotifications,
+          audit_logging: newSettings.auditLogging,
+          two_factor_auth: newSettings.twoFactorAuth,
+          maintenance_mode: newSettings.maintenanceMode,
+          public_registration: newSettings.publicRegistration,
+          auto_backup: newSettings.autoBackup,
+          allow_guest_login: newSettings.allowGuestLogin,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", "00000000-0000-0000-0000-000000000001");
+
+      if (error) throw error;
+      setSettings(newSettings);
+      console.log("Settings saved to database:", newSettings);
+    } catch (err) {
+      console.error("Error saving settings:", err);
+      // Fallback update local state so UI at least reflects the attempt
+      setSettings(newSettings);
+    }
   };
 
   // Rate limits save

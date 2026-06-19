@@ -29,37 +29,37 @@ const TrackComplaint = () => {
       label: 'Submitted', 
       color: 'bg-blue-100 text-blue-800 border-blue-200',
       icon: FileText,
-      description: 'Your complaint has been received and is awaiting verification.'
+      description: 'Your feedback has been received and is awaiting verification.'
     },
     verified: { 
       label: 'Verified', 
       color: 'bg-gold-100 text-gold-800 border-gold-200',
       icon: CheckCircle,
-      description: 'Your complaint has been verified and assigned to a department.'
+      description: 'Your feedback has been verified and assigned to a department.'
     },
     rejected: { 
       label: 'Rejected', 
       color: 'bg-red-100 text-red-800 border-red-200',
       icon: XCircle,
-      description: 'Your complaint was not approved. See remarks for details.'
+      description: 'Your feedback was not approved. See remarks for details.'
     },
     in_progress: { 
       label: 'In Progress', 
       color: 'bg-orange-100 text-orange-800 border-orange-200',
       icon: Clock,
-      description: 'The department is actively working on resolving your complaint.'
+      description: 'The department is actively working on resolving your feedback.'
     },
     resolved: { 
       label: 'Resolved', 
       color: 'bg-green-100 text-green-800 border-green-200',
       icon: CheckCircle,
-      description: 'Your complaint has been resolved. Thank you for your feedback.'
+      description: 'Your feedback has been resolved. Thank you for your feedback.'
     },
     closed: {
       label: 'Closed',
       color: 'bg-gray-100 text-gray-800 border-gray-200',
       icon: Lock,
-      description: 'This complaint has been closed. Thank you for your feedback.'
+      description: 'This feedback has been closed. Thank you for your feedback.'
     },
     disputed: {
       label: 'Disputed',
@@ -86,7 +86,7 @@ const TrackComplaint = () => {
 
       if (fetchError) {
         if (fetchError.code === 'PGRST116') {
-          setError('No complaint found with this reference number.')
+          setError('No feedback found with this reference number.')
         } else {
           throw fetchError
         }
@@ -106,7 +106,7 @@ const TrackComplaint = () => {
         setAuditTrail(trailData)
       }
     } catch (err) {
-      setError(err.message || 'Failed to fetch complaint. Please try again.')
+      setError(err.message || 'Failed to fetch feedback. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -141,7 +141,7 @@ const TrackComplaint = () => {
           <div className="w-16 h-16 bg-maroon-800 rounded-full flex items-center justify-center mx-auto mb-4">
             <Search size={32} className="text-gold-400" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Track Your Complaint</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Track Your Feedback</h1>
           <p className="text-gray-600 mt-2">Enter your reference number to check the status</p>
         </div>
 
@@ -206,7 +206,7 @@ const TrackComplaint = () => {
 
             {/* Complaint Info */}
             <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Complaint Details</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Feedback Details</h3>
               
               <div className="grid md:grid-cols-2 gap-4 mb-6">
                 <div className="flex items-start space-x-3">

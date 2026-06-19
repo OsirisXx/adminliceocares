@@ -315,7 +315,7 @@ const DepartmentsSection = ({
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredComplaints.length > 0 ? (
-                    filteredComplaints.map((complaint) => (
+                    filteredComplaints.map((feedback) => (
                       <tr key={complaint.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
                           <span className="font-mono text-sm font-medium text-maroon-700">

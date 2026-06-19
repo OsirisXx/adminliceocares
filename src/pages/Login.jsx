@@ -9,22 +9,27 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { signIn, signInWithGoogle, user, userRole } = useAuth();
+  const { signIn, signInWithGoogle, user, userRole, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && userRole) {
-      if (userRole === "super_admin") {
-        navigate("/super-admin", { replace: true });
-      } else if (userRole === "admin") {
-        // Admin role now means Office Admin who manages complaints
-        navigate("/admin", { replace: true });
-      } else if (userRole === "department" || userRole === "faculty" || userRole === "employee") {
-        // Department staff, faculty, and employees go to department dashboard
-        navigate("/department", { replace: true });
+    const handleRoleRedirect = async () => {
+      if (user && !authLoading) {
+        if (userRole === "super_admin") {
+          navigate("/super-admin", { replace: true });
+        } else if (userRole === "admin") {
+          navigate("/admin", { replace: true });
+        } else if (userRole === "department" || userRole === "faculty" || userRole === "employee") {
+          navigate("/department", { replace: true });
+        } else if (userRole === null) {
+          // User is authenticated but has no role in the users table
+          setError("Your account is not authorized to access this portal. Please contact the super administrator to register your account.");
+          await supabase.auth.signOut();
+        }
       }
-    }
-  }, [user, userRole, navigate]);
+    };
+    handleRoleRedirect();
+  }, [user, userRole, authLoading, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

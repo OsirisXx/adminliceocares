@@ -1,89 +1,157 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { AlertCircle, ShieldX } from "lucide-react";
+import { AlertCircle, ShieldX, Loader2 } from "lucide-react";
+
+// Persistent logger — survives page navigation
+const plog = (msg, data) => {
+  const entry = `[${new Date().toISOString()}] ${msg}` + (data !== undefined ? `: ${JSON.stringify(data)}` : "");
+  console.log(entry);
+  const existing = JSON.parse(sessionStorage.getItem("auth_debug") || "[]");
+  existing.push(entry);
+  sessionStorage.setItem("auth_debug", JSON.stringify(existing.slice(-30))); // keep last 30
+};
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [accessDenied, setAccessDenied] = useState(false);
+  const [status, setStatus] = useState("Processing login...");
+  const [debugLogs, setDebugLogs] = useState([]);
+
+  // On mount, show any logs from previous navigation
+  useEffect(() => {
+    const previous = JSON.parse(sessionStorage.getItem("auth_debug") || "[]");
+    if (previous.length) setDebugLogs(previous);
+    sessionStorage.removeItem("auth_debug");
+  }, []);
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    let isMounted = true;
 
-        if (sessionError) {
-          setError(sessionError.message);
+    plog("AuthCallback mounted", { url: window.location.href });
+
+    const handleAuthCallback = async (session) => {
+      plog("handleAuthCallback called");
+      plog("User ID", session?.user?.id);
+      plog("User Email", session?.user?.email);
+
+      try {
+        if (!session?.user) {
+          plog("ERROR: No user in session");
+          if (isMounted) setError("No session found. Please try logging in again.");
           return;
         }
 
-        if (session?.user) {
-          // Fetch user role and department from users table
-          let { data: userData } = await supabase
+        if (isMounted) setStatus("Checking your account permissions...");
+
+        // Query by ID first
+        plog("Querying users table by ID", session.user.id);
+        const { data: userDataById, error: idError } = await supabase
+          .from("users")
+          .select("id, role, department, email")
+          .eq("id", session.user.id)
+          .single();
+
+        plog("Query by ID result", { data: userDataById, error: idError?.message });
+
+        let userData = userDataById;
+
+        // Fallback: Query by email
+        if (!userData && session.user.email) {
+          plog("ID lookup failed, trying email", session.user.email);
+          const { data: userDataByEmail, error: emailError } = await supabase
             .from("users")
-            .select("role, department")
-            .eq("id", session.user.id)
+            .select("id, role, department, email")
+            .eq("email", session.user.email)
             .single();
 
-          // If no user record exists, create one with default 'student' role
-          if (!userData) {
-            const { data: newUser } = await supabase
-              .from("users")
-              .insert({
-                id: session.user.id,
-                email: session.user.email,
-                full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || "User",
-                role: "student", // Default role for first-time login
-              })
-              .select("role, department")
-              .single();
-            userData = newUser;
-          }
+          plog("Query by email result", { data: userDataByEmail, error: emailError?.message });
+          userData = userDataByEmail;
+        }
 
-          const userRole = userData?.role || "student";
-          const userDepartment = userData?.department;
+        plog("Final userData", userData);
 
-          // BLOCK students from accessing admin panel
-          if (userRole === "student") {
+        // If still no user found - block access (don't auto-create as student)
+        if (!userData) {
+          plog("ERROR: No user record found in users table - blocking access");
+          if (isMounted) {
+            setStatus("");
             setAccessDenied(true);
-            await supabase.auth.signOut();
-            return;
           }
+          await supabase.auth.signOut();
+          return;
+        }
 
-          // BLOCK unverified users (employees without department assignment)
-          // These are users who logged in via Gmail but haven't been verified by super admin
-          if ((userRole === "employee" || userRole === "faculty" || userRole === "department") && !userDepartment) {
-            setAccessDenied(true);
-            await supabase.auth.signOut();
-            return;
-          }
+        const userRole = userData.role;
+        const userDepartment = userData.department;
 
-          // Redirect based on role (only verified users reach here)
-          if (userRole === "super_admin") {
-            navigate("/super-admin", { replace: true });
-          } else if (userRole === "admin") {
-            navigate("/admin", { replace: true });
-          } else if (userRole === "department" || userRole === "faculty" || userRole === "employee") {
-            navigate("/department", { replace: true });
-          } else {
-            // Unknown role - block access
-            setAccessDenied(true);
-            await supabase.auth.signOut();
-          }
+        plog("User role", { role: userRole, department: userDepartment });
+
+        // BLOCK students from accessing admin panel
+        if (userRole === "student") {
+          plog("BLOCKED: Student role not allowed on admin panel");
+          if (isMounted) setAccessDenied(true);
+          await supabase.auth.signOut();
+          return;
+        }
+
+        // BLOCK unverified users (employees without department assignment)
+        if ((userRole === "employee" || userRole === "faculty" || userRole === "department") && !userDepartment) {
+          plog("BLOCKED: No department assigned");
+          if (isMounted) setAccessDenied(true);
+          await supabase.auth.signOut();
+          return;
+        }
+
+        // Redirect based on role
+        plog("SUCCESS: Redirecting user with role", userRole);
+        if (isMounted) setStatus("Access granted! Redirecting...");
+
+        if (userRole === "super_admin") {
+          navigate("/super-admin", { replace: true });
+        } else if (userRole === "admin") {
+          navigate("/admin", { replace: true });
+        } else if (userRole === "department" || userRole === "faculty" || userRole === "employee") {
+          navigate("/department", { replace: true });
         } else {
-          navigate("/login", { replace: true });
+          plog("BLOCKED: Unknown role", userRole);
+          if (isMounted) setAccessDenied(true);
+          await supabase.auth.signOut();
         }
       } catch (err) {
-        console.error("Auth callback error:", err);
-        setError("An error occurred during authentication. Please try again.");
+        plog("EXCEPTION", err.message);
+        if (isMounted) setError(`Authentication error: ${err.message}`);
       }
     };
 
-    handleAuthCallback();
+    // Listen for SIGNED_IN (this fires after OAuth redirect)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      plog("onAuthStateChange", { event, email: session?.user?.email });
+      if (event === "SIGNED_IN" && session?.user) {
+        handleAuthCallback(session);
+      }
+    });
+
+    // Also check existing session (in case the page was refreshed)
+    supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
+      plog("getSession", { email: session?.user?.email, error: sessionError?.message });
+      if (sessionError) {
+        if (isMounted) setError(sessionError.message);
+        return;
+      }
+      if (session?.user) {
+        handleAuthCallback(session);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
-  // Access Denied Screen for Students
+  // Access Denied Screen
   if (accessDenied) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center py-12 px-4">
@@ -92,29 +160,23 @@ const AuthCallback = () => {
             <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <ShieldX size={40} className="text-red-500" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-3">
-              Access Denied
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Access Denied</h2>
             <p className="text-gray-600 mb-4">
-              Your account has not been verified for admin access.
+              Your account has not been authorized for admin access.
             </p>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
               <p className="text-sm text-amber-800">
-                <strong>Students cannot access this portal.</strong><br />
-                If you are a faculty, employee, or staff member, please contact the administrator to verify your account.
+                <strong>This portal is for staff only.</strong><br />
+                If you are a faculty, employee, or staff member, please contact
+                the super administrator to have your account verified.
               </p>
             </div>
-            <div className="space-y-3">
-              <button
-                onClick={() => navigate("/login")}
-                className="w-full bg-maroon-800 text-white py-3 px-4 rounded-xl font-semibold hover:bg-maroon-700 transition-all duration-200"
-              >
-                Back to Login
-              </button>
-              <p className="text-xs text-gray-500">
-                Need help? Contact: admin@liceo.edu.ph
-              </p>
-            </div>
+            <button
+              onClick={() => navigate("/login")}
+              className="w-full bg-maroon-800 text-white py-3 px-4 rounded-xl font-semibold hover:bg-maroon-700 transition-all duration-200"
+            >
+              Back to Login
+            </button>
           </div>
         </div>
       </div>
@@ -129,9 +191,7 @@ const AuthCallback = () => {
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertCircle size={32} className="text-red-500" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              Authentication Error
-            </h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Authentication Error</h2>
             <p className="text-gray-600 mb-6">{error}</p>
             <button
               onClick={() => navigate("/login")}
@@ -146,11 +206,20 @@ const AuthCallback = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center flex-col gap-4 p-8">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-maroon-800 border-t-transparent mx-auto mb-4"></div>
-        <p className="text-gray-600">Completing sign in...</p>
+        <Loader2 size={48} className="animate-spin text-maroon-800 mx-auto mb-4" />
+        <p className="text-gray-600 font-medium">{status}</p>
       </div>
+      {/* Debug panel - visible on screen */}
+      {debugLogs.length > 0 && (
+        <div className="w-full max-w-2xl bg-black/90 rounded-xl p-4 text-left mt-4">
+          <p className="text-yellow-400 font-bold text-xs mb-2">🔍 Auth Debug Log (send this to your developer):</p>
+          {debugLogs.map((log, i) => (
+            <p key={i} className="text-green-400 text-xs font-mono break-all">{log}</p>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -18,11 +18,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (user && !userRole) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-maroon-800 border-t-transparent"></div>
-      </div>
-    );
+    // Role could not be determined — redirect to login
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(userRole)) {

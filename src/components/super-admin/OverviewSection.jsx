@@ -128,7 +128,7 @@ const OverviewSection = ({ stats, recentActivity, loading, complaints = [] }) =>
           <div className="p-6 pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Complaints Overview</h2>
-              <p className="text-sm text-gray-500">Showing complaint statistics by status</p>
+              <p className="text-sm text-gray-500">Showing feedback statistics by status</p>
             </div>
             <div className="flex flex-wrap gap-1">
               {[
