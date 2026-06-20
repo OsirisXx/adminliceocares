@@ -1,14 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
-import { Mail, Lock, LogIn, AlertCircle } from "lucide-react";
+import { Mail, Lock, LogIn, AlertCircle, ShieldCheck } from "lucide-react";
+
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+const SITEVERIFY_WORKER_URL = "https://turnstile-siteverify-liceocares.harleybusa82.workers.dev";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState(null);
+  const [turnstileReady, setTurnstileReady] = useState(false);
+  const turnstileRef = useRef(null);
+  const widgetIdRef = useRef(null);
   const { signIn, signInWithGoogle, user, userRole, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -22,7 +29,6 @@ const Login = () => {
         } else if (userRole === "department" || userRole === "faculty" || userRole === "employee") {
           navigate("/department", { replace: true });
         } else if (userRole === null) {
-          // User is authenticated but has no role in the users table
           setError("Your account is not authorized to access this portal. Please contact the super administrator to register your account.");
           await supabase.auth.signOut();
         }
@@ -31,16 +37,97 @@ const Login = () => {
     handleRoleRedirect();
   }, [user, userRole, authLoading, navigate]);
 
+  // Load Cloudflare Turnstile script
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) {
+      // No site key configured — skip CAPTCHA in dev mode
+      setTurnstileReady(false);
+      return;
+    }
+
+    const existingScript = document.getElementById("cf-turnstile-script");
+    if (existingScript) {
+      if (window.turnstile) setTurnstileReady(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "cf-turnstile-script";
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setTurnstileReady(true);
+    document.head.appendChild(script);
+
+    return () => {
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.remove(widgetIdRef.current);
+      }
+    };
+  }, []);
+
+  // Render the Turnstile widget once script is ready
+  useEffect(() => {
+    if (!turnstileReady || !turnstileRef.current || !TURNSTILE_SITE_KEY) return;
+    if (widgetIdRef.current) return; // Already rendered
+
+    widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      theme: "light",
+      callback: (token) => setTurnstileToken(token),
+      "expired-callback": () => setTurnstileToken(null),
+      "error-callback": () => setTurnstileToken(null),
+    });
+  }, [turnstileReady]);
+
+  const resetTurnstile = useCallback(() => {
+    if (widgetIdRef.current && window.turnstile) {
+      window.turnstile.reset(widgetIdRef.current);
+      setTurnstileToken(null);
+    }
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Block submission if CAPTCHA is enabled but not yet solved
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError("Please complete the security check before signing in.");
+      return;
+    }
+
     setLoading(true);
+
+    // Server-side Turnstile verification via Cloudflare Worker
+    if (TURNSTILE_SITE_KEY && turnstileToken) {
+      try {
+        const verifyRes = await fetch(SITEVERIFY_WORKER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: turnstileToken }),
+        });
+        const verifyData = await verifyRes.json();
+        if (!verifyData.success) {
+          setError("Security verification failed. Please try again.");
+          setLoading(false);
+          resetTurnstile();
+          return;
+        }
+      } catch {
+        setError("Could not verify security check. Please try again.");
+        setLoading(false);
+        resetTurnstile();
+        return;
+      }
+    }
 
     const { data, error: signInError } = await signIn(email, password);
 
     if (signInError) {
       setError(signInError.message);
       setLoading(false);
+      resetTurnstile();
       return;
     }
 
@@ -63,6 +150,9 @@ const Login = () => {
     }
     setLoading(false);
   };
+
+  const captchaEnabled = !!TURNSTILE_SITE_KEY;
+  const canSubmit = !loading && (!captchaEnabled || !!turnstileToken);
 
   return (
     <div className="min-h-[calc(100vh-200px)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
@@ -138,9 +228,23 @@ const Login = () => {
               </div>
             </div>
 
+            {/* Cloudflare Turnstile CAPTCHA */}
+            {captchaEnabled && (
+              <div className="flex flex-col items-center space-y-2">
+                <div ref={turnstileRef} />
+                {turnstileToken && (
+                  <div className="flex items-center space-x-1.5 text-green-600 text-xs font-medium">
+                    <ShieldCheck size={14} />
+                    <span>Security check passed</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
+              id="login-submit-btn"
               type="submit"
-              disabled={loading}
+              disabled={!canSubmit}
               className="w-full bg-maroon-800 text-white py-3 px-4 rounded-xl font-semibold hover:bg-maroon-700 focus:ring-4 focus:ring-maroon-200 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

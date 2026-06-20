@@ -33,6 +33,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Columns,
+  Kanban,
 } from "lucide-react";
 import {
   AreaChart,
@@ -69,6 +70,7 @@ const DepartmentDashboard = () => {
   const [chartTimeRange, setChartTimeRange] = useState("all");
   const [sortOrder, setSortOrder] = useState("newest");
   const [viewMode, setViewMode] = useState("expanded");
+  const [listLayout, setListLayout] = useState("list"); // 'list' or 'kanban'
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [paginationEnabled, setPaginationEnabled] = useState(true);
@@ -986,6 +988,34 @@ const DepartmentDashboard = () => {
 
             {/* Layout & Sort Controls */}
             <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100">
+              {/* List / Kanban View Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setListLayout("list")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    listLayout === "list"
+                      ? "bg-white shadow-sm text-maroon-800"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                  title="List View"
+                >
+                  <LayoutList size={15} />
+                  <span>List</span>
+                </button>
+                <button
+                  onClick={() => setListLayout("kanban")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    listLayout === "kanban"
+                      ? "bg-white shadow-sm text-maroon-800"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                  title="Kanban Board"
+                >
+                  <Kanban size={15} />
+                  <span>Kanban</span>
+                </button>
+              </div>
+
               {/* Sort Order */}
               <div className="flex items-center gap-2">
                 <ArrowUpDown size={16} className="text-gray-400" />
@@ -999,68 +1029,74 @@ const DepartmentDashboard = () => {
                 </select>
               </div>
 
-              {/* View Mode Toggle */}
-              <button
-                onClick={() =>
-                  setViewMode(viewMode === "expanded" ? "compact" : "expanded")
-                }
-                className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium transition-colors hover:bg-gray-200"
-                title={
-                  viewMode === "expanded"
-                    ? "Switch to Compact View"
-                    : "Switch to Expanded View"
-                }
-              >
-                {viewMode === "expanded" ? (
-                  <>
-                    <Minimize2 size={16} className="text-gray-600" />
-                    <span className="text-gray-700">Minimize</span>
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 size={16} className="text-maroon-800" />
-                    <span className="text-maroon-800">Expand</span>
-                  </>
-                )}
-              </button>
-
-              {/* Column Count Selector */}
-              <div className="flex items-center gap-2">
-                <Columns size={16} className="text-gray-400" />
-                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                  {[1, 2, 3, 4].map((cols) => (
-                    <button
-                      key={cols}
-                      onClick={() => setColumnCount(cols)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                        columnCount === cols
-                          ? "bg-white shadow-sm text-maroon-800"
-                          : "text-gray-500 hover:text-gray-700"
-                      }`}
-                    >
-                      {cols}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Pagination Toggle */}
-              <div className="flex items-center gap-2">
+              {/* View Mode Toggle (only in list layout) */}
+              {listLayout === "list" && (
                 <button
-                  onClick={() => setPaginationEnabled(!paginationEnabled)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    paginationEnabled
-                      ? "bg-maroon-100 text-maroon-800"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
+                  onClick={() =>
+                    setViewMode(viewMode === "expanded" ? "compact" : "expanded")
+                  }
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium transition-colors hover:bg-gray-200"
+                  title={
+                    viewMode === "expanded"
+                      ? "Switch to Compact View"
+                      : "Switch to Expanded View"
+                  }
                 >
-                  <LayoutGrid size={16} />
-                  <span>Pagination {paginationEnabled ? "On" : "Off"}</span>
+                  {viewMode === "expanded" ? (
+                    <>
+                      <Minimize2 size={16} className="text-gray-600" />
+                      <span className="text-gray-700">Minimize</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 size={16} className="text-maroon-800" />
+                      <span className="text-maroon-800">Expand</span>
+                    </>
+                  )}
                 </button>
-              </div>
+              )}
 
-              {/* Items Per Page - only show when pagination is enabled */}
-              {paginationEnabled && (
+              {/* Column Count Selector (only in list layout) */}
+              {listLayout === "list" && (
+                <div className="flex items-center gap-2">
+                  <Columns size={16} className="text-gray-400" />
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    {[1, 2, 3, 4].map((cols) => (
+                      <button
+                        key={cols}
+                        onClick={() => setColumnCount(cols)}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                          columnCount === cols
+                            ? "bg-white shadow-sm text-maroon-800"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        {cols}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pagination Toggle (only in list layout) */}
+              {listLayout === "list" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPaginationEnabled(!paginationEnabled)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      paginationEnabled
+                        ? "bg-maroon-100 text-maroon-800"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    <LayoutGrid size={16} />
+                    <span>Pagination {paginationEnabled ? "On" : "Off"}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Items Per Page - only show when pagination is enabled and in list layout */}
+              {listLayout === "list" && paginationEnabled && (
                 <div className="flex items-center gap-2">
                   <LayoutList size={16} className="text-gray-400" />
                   <select
@@ -1077,7 +1113,7 @@ const DepartmentDashboard = () => {
               )}
 
               <span className="text-sm text-gray-500 ml-auto">
-                {paginationEnabled
+                {listLayout === "list" && paginationEnabled
                   ? `Showing ${paginatedComplaints.length} of ${filteredComplaints.length}`
                   : `${filteredComplaints.length}`}{" "}
                 concern{filteredComplaints.length !== 1 ? "s" : ""}
@@ -1086,8 +1122,89 @@ const DepartmentDashboard = () => {
           </div>
         </div>
 
-        {/* Complaints Newsfeed */}
-        <div
+        {/* Kanban Board View */}
+        {listLayout === "kanban" && (
+          <div className="overflow-x-auto pb-4">
+            <div className="flex gap-4 min-w-max">
+              {[
+                { key: "verified", label: "Pending", color: "border-t-yellow-400", headerBg: "bg-yellow-50", headerText: "text-yellow-800", dot: "bg-yellow-400" },
+                { key: "in_progress", label: "In Progress", color: "border-t-orange-400", headerBg: "bg-orange-50", headerText: "text-orange-800", dot: "bg-orange-400" },
+                { key: "backlog", label: "Backlog", color: "border-t-purple-400", headerBg: "bg-purple-50", headerText: "text-purple-800", dot: "bg-purple-400" },
+                { key: "resolved", label: "Resolved", color: "border-t-green-400", headerBg: "bg-green-50", headerText: "text-green-800", dot: "bg-green-400" },
+                { key: "closed", label: "Closed", color: "border-t-gray-400", headerBg: "bg-gray-50", headerText: "text-gray-700", dot: "bg-gray-400" },
+                { key: "disputed", label: "Disputed", color: "border-t-amber-400", headerBg: "bg-amber-50", headerText: "text-amber-800", dot: "bg-amber-400" },
+              ].map((col) => {
+                const colComplaints = sortedComplaints.filter((c) => c.status === col.key);
+                return (
+                  <div
+                    key={col.key}
+                    className={`w-72 flex-shrink-0 bg-white rounded-xl border border-gray-100 border-t-4 ${col.color} shadow-sm flex flex-col`}
+                  >
+                    {/* Column Header */}
+                    <div className={`px-4 py-3 ${col.headerBg} rounded-t-lg flex items-center justify-between`}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full ${col.dot}`}></div>
+                        <span className={`font-semibold text-sm ${col.headerText}`}>{col.label}</span>
+                      </div>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full bg-white/60 ${col.headerText}`}>
+                        {colComplaints.length}
+                      </span>
+                    </div>
+
+                    {/* Cards */}
+                    <div className="flex flex-col gap-3 p-3 overflow-y-auto" style={{ maxHeight: "65vh" }}>
+                      {colComplaints.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-8 text-gray-300">
+                          <FileText size={32} className="mb-2" />
+                          <p className="text-xs">No tickets</p>
+                        </div>
+                      ) : (
+                        colComplaints.map((complaint) => (
+                          <div
+                            key={complaint.id}
+                            className="bg-gray-50 rounded-lg p-3 border border-gray-100 hover:border-maroon-200 hover:shadow-md transition-all duration-200 cursor-pointer group"
+                            onClick={() => { setSelectedComplaint(complaint); setShowModal(true); }}
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <span className="font-mono text-xs text-maroon-800 bg-maroon-50 px-2 py-0.5 rounded border border-maroon-100">
+                                {complaint.reference_number}
+                              </span>
+                              <span className="text-xs text-gray-400 shrink-0">
+                                {new Date(complaint.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-800 mb-1 line-clamp-2 group-hover:text-maroon-800 transition-colors">
+                              {complaint.name}
+                            </p>
+                            <p className="text-xs text-gray-500 line-clamp-2 mb-3">
+                              {complaint.description}
+                            </p>
+                            <div className="flex items-center justify-between">
+                              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-white border border-gray-200 rounded-full capitalize text-gray-600">
+                                <Tag size={10} />
+                                {complaint.category}
+                              </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(`/ticket/${complaint.reference_number}`); }}
+                                className="p-1.5 text-gray-400 hover:text-maroon-700 hover:bg-maroon-50 rounded-lg transition-colors"
+                                title="View Discussion"
+                              >
+                                <MessageSquare size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Complaints List/Grid View */}
+        {listLayout === "list" && <div
           className={`${
             columnCount === 1
               ? "space-y-4"
@@ -1391,10 +1508,10 @@ const DepartmentDashboard = () => {
               );
             })
           )}
-        </div>
+        </div>}
 
         {/* Pagination Controls */}
-        {paginationEnabled && totalPages > 1 && (
+        {listLayout === "list" && paginationEnabled && totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-6">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -1467,7 +1584,7 @@ const DepartmentDashboard = () => {
                 </button>
               </div>
 
-              {/* Modal Body */}
+                {/* Modal Body */}
               <div className="p-6 space-y-6">
                 {/* Status with Dropdown */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1484,11 +1601,10 @@ const DepartmentDashboard = () => {
                       value={newStatus}
                       onChange={(e) => {
                         setNewStatus(e.target.value);
-                        setShowStatusChangeSection(!!e.target.value);
                       }}
                       className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white"
                     >
-                      <option value="">Change Status...</option>
+                      <option value="">Select Action...</option>
                       {selectedComplaint.status === "verified" && (
                         <>
                           <option value="in_progress">Start Progress</option>
@@ -1518,34 +1634,8 @@ const DepartmentDashboard = () => {
                         <option value="in_progress">Reopen for Review</option>
                       )}
                     </select>
-                    {newStatus && newStatus !== selectedComplaint.status && (
-                      <button
-                        onClick={handleStatusChange}
-                        disabled={actionLoading}
-                        className="px-3 py-1.5 bg-maroon-800 text-white rounded-lg text-sm font-medium hover:bg-maroon-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {actionLoading ? "Applying..." : "Apply"}
-                      </button>
-                    )}
                   </div>
                 </div>
-
-                {/* Remarks for status change */}
-                {newStatus && newStatus !== selectedComplaint.status && (
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Remarks for Status Change{" "}
-                      <span className="text-gray-400">(optional)</span>
-                    </label>
-                    <textarea
-                      value={departmentRemarks}
-                      onChange={(e) => setDepartmentRemarks(e.target.value)}
-                      rows={2}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
-                      placeholder="Add remarks for this status change..."
-                    />
-                  </div>
-                )}
 
                 {/* Info Grid */}
                 <div className="grid md:grid-cols-2 gap-4">
@@ -1624,206 +1714,254 @@ const DepartmentDashboard = () => {
                   </div>
                 )}
 
-                {/* Action Section - For verified complaints (start progress) */}
-                {selectedComplaint.status === "verified" && (
-                  <div className="border-t border-gray-100 pt-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">
-                      Take Action
-                    </h3>
+                {/* Action Section Wrapper */}
+                {(() => {
+                  const actionToTake = newStatus || (
+                    selectedComplaint.status === "verified" ? "in_progress" :
+                    selectedComplaint.status === "in_progress" ? "resolved" :
+                    ""
+                  );
 
-                    {/* Assign to Staff Member */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assign to Staff Member{" "}
-                        <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <div className="relative">
-                        <User
-                          size={20}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                        <select
-                          value={selectedStaff}
-                          onChange={(e) => setSelectedStaff(e.target.value)}
-                          disabled={staffLoading}
-                          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <option value="">
-                            {staffLoading
-                              ? "Loading staff..."
-                              : "Select a staff member (or keep for yourself)"}
-                          </option>
-                          {departmentStaff.map((staff) => (
-                            <option key={staff.value} value={staff.value}>
-                              {staff.label} ({staff.role})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {departmentStaff.length === 0 && !staffLoading && (
-                        <p className="text-sm text-amber-600 mt-2">
-                          No other staff members found in this department.
-                        </p>
-                      )}
-                    </div>
+                  return (
+                    <>
+                      {/* Action Section - For in_progress (start progress) */}
+                      {actionToTake === "in_progress" && (
+                        <div className="border-t border-gray-100 pt-6">
+                          <h3 className="font-semibold text-gray-900 mb-4">
+                            Take Action
+                          </h3>
 
-                    {/* Remarks */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Remarks{" "}
-                        <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <textarea
-                        value={departmentRemarks}
-                        onChange={(e) => setDepartmentRemarks(e.target.value)}
-                        rows={3}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
-                        placeholder="Add any initial remarks..."
-                      />
-                    </div>
+                          {/* Assign to Staff Member */}
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Assign to Staff Member{" "}
+                              <span className="text-gray-400">(optional)</span>
+                            </label>
+                            <div className="relative">
+                              <User
+                                size={20}
+                                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                              />
+                              <select
+                                value={selectedStaff}
+                                onChange={(e) => setSelectedStaff(e.target.value)}
+                                disabled={staffLoading}
+                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <option value="">
+                                  {staffLoading
+                                    ? "Loading staff..."
+                                    : "Select a staff member (or keep for yourself)"}
+                                </option>
+                                {departmentStaff.map((staff) => (
+                                  <option key={staff.value} value={staff.value}>
+                                    {staff.label} ({staff.role})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            {departmentStaff.length === 0 && !staffLoading && (
+                              <p className="text-sm text-amber-600 mt-2">
+                                No other staff members found in this department.
+                              </p>
+                            )}
+                          </div>
 
-                    <button
-                      onClick={handleStartProgress}
-                      disabled={actionLoading}
-                      className="w-full bg-orange-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {actionLoading ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                      ) : (
-                        <>
-                          <PlayCircle size={20} />
-                          <span>Start Working on This</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
+                          {/* Remarks */}
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Remarks{" "}
+                              <span className="text-gray-400">(optional)</span>
+                            </label>
+                            <textarea
+                              value={departmentRemarks}
+                              onChange={(e) => setDepartmentRemarks(e.target.value)}
+                              rows={3}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
+                              placeholder="Add any initial remarks..."
+                            />
+                          </div>
 
-                {/* Action Section - For in_progress complaints (resolve) */}
-                {selectedComplaint.status === "in_progress" && (
-                  <div className="border-t border-gray-100 pt-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">
-                      Resolve Feedback
-                    </h3>
-
-                    {/* Resolution Details */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Resolution Details{" "}
-                        <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <textarea
-                        value={resolutionDetails}
-                        onChange={(e) => setResolutionDetails(e.target.value)}
-                        rows={4}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
-                        placeholder="Describe how the feedback was resolved..."
-                      />
-                    </div>
-
-                    {/* Resolution Image Upload - Required */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Resolution Proof Image{" "}
-                        <span className="text-gray-400">(optional)</span>
-                      </label>
-                      {imageError && (
-                        <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-                          <p className="text-red-700 text-sm">{imageError}</p>
-                        </div>
-                      )}
-                      <div className="relative">
-                        <input
-                          type="file"
-                          onChange={handleResolutionImageChange}
-                          accept="image/*"
-                          className="hidden"
-                          id="resolutionImage"
-                        />
-                        <label
-                          htmlFor="resolutionImage"
-                          className={`flex items-center justify-center space-x-2 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
-                            resolutionImage
-                              ? "border-green-400 bg-green-50"
-                              : "border-gray-300 hover:border-green-400 hover:bg-gray-50"
-                          }`}
-                        >
-                          <Upload
-                            size={20}
-                            className={
-                              resolutionImage
-                                ? "text-green-500"
-                                : "text-gray-400"
-                            }
-                          />
-                          <span
-                            className={
-                              resolutionImage
-                                ? "text-green-700"
-                                : "text-gray-600"
-                            }
-                          >
-                            {resolutionImage
-                              ? resolutionImage.name
-                              : "Upload proof of resolution (optional)"}
-                          </span>
-                        </label>
-                      </div>
-                      {resolutionImage && (
-                        <div className="mt-3">
-                          <img
-                            src={URL.createObjectURL(resolutionImage)}
-                            alt="Resolution Preview"
-                            className="max-h-40 rounded-lg border border-gray-200"
-                          />
                           <button
-                            type="button"
-                            onClick={() => setResolutionImage(null)}
-                            className="mt-2 text-sm text-red-600 hover:text-red-800"
+                            onClick={handleStartProgress}
+                            disabled={actionLoading}
+                            className="w-full bg-orange-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-orange-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            Remove image
+                            {actionLoading ? (
+                              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                            ) : (
+                              <>
+                                <PlayCircle size={20} />
+                                <span>Start Working on This</span>
+                              </>
+                            )}
                           </button>
                         </div>
                       )}
-                      <p className="text-sm text-gray-500 mt-1">
-                        Upload an image showing the resolved issue (JPG, PNG,
-                        GIF - max 5MB)
-                      </p>
-                    </div>
 
-                    {/* Additional Remarks */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Additional Remarks{" "}
-                        <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <textarea
-                        value={departmentRemarks}
-                        onChange={(e) => setDepartmentRemarks(e.target.value)}
-                        rows={2}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
-                        placeholder="Any additional notes..."
-                      />
-                    </div>
+                      {/* Action Section - For resolved (resolve) */}
+                      {actionToTake === "resolved" && (
+                        <div className="border-t border-gray-100 pt-6">
+                          <h3 className="font-semibold text-gray-900 mb-4">
+                            Resolve Feedback
+                          </h3>
 
-                    <button
-                      onClick={handleResolve}
-                      disabled={
-                        actionLoading || !resolutionDetails || !resolutionImage
-                      }
-                      className="w-full bg-green-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {actionLoading ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                      ) : (
-                        <>
-                          <CheckCircle size={20} />
-                          <span>Mark as Resolved</span>
-                        </>
+                          {/* Resolution Details */}
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Resolution Details{" "}
+                              <span className="text-gray-400">(optional)</span>
+                            </label>
+                            <textarea
+                              value={resolutionDetails}
+                              onChange={(e) => setResolutionDetails(e.target.value)}
+                              rows={4}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
+                              placeholder="Describe how the feedback was resolved..."
+                            />
+                          </div>
+
+                          {/* Resolution Image Upload - Required */}
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Resolution Proof Image{" "}
+                              <span className="text-gray-400">(optional)</span>
+                            </label>
+                            {imageError && (
+                              <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                                <p className="text-red-700 text-sm">{imageError}</p>
+                              </div>
+                            )}
+                            <div className="relative">
+                              <input
+                                type="file"
+                                onChange={handleResolutionImageChange}
+                                accept="image/*"
+                                className="hidden"
+                                id="resolutionImage"
+                              />
+                              <label
+                                htmlFor="resolutionImage"
+                                className={`flex items-center justify-center space-x-2 w-full py-4 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
+                                  resolutionImage
+                                    ? "border-green-400 bg-green-50"
+                                    : "border-gray-300 hover:border-green-400 hover:bg-gray-50"
+                                }`}
+                              >
+                                <Upload
+                                  size={20}
+                                  className={
+                                    resolutionImage
+                                      ? "text-green-500"
+                                      : "text-gray-400"
+                                  }
+                                />
+                                <span
+                                  className={
+                                    resolutionImage
+                                      ? "text-green-700"
+                                      : "text-gray-600"
+                                  }
+                                >
+                                  {resolutionImage
+                                    ? resolutionImage.name
+                                    : "Upload proof of resolution (optional)"}
+                                </span>
+                              </label>
+                            </div>
+                            {resolutionImage && (
+                              <div className="mt-3">
+                                <img
+                                  src={URL.createObjectURL(resolutionImage)}
+                                  alt="Resolution Preview"
+                                  className="max-h-40 rounded-lg border border-gray-200"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setResolutionImage(null)}
+                                  className="mt-2 text-sm text-red-600 hover:text-red-800"
+                                >
+                                  Remove image
+                                </button>
+                              </div>
+                            )}
+                            <p className="text-sm text-gray-500 mt-1">
+                              Upload an image showing the resolved issue (JPG, PNG,
+                              GIF - max 5MB)
+                            </p>
+                          </div>
+
+                          {/* Additional Remarks */}
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Additional Remarks{" "}
+                              <span className="text-gray-400">(optional)</span>
+                            </label>
+                            <textarea
+                              value={departmentRemarks}
+                              onChange={(e) => setDepartmentRemarks(e.target.value)}
+                              rows={2}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
+                              placeholder="Any additional notes..."
+                            />
+                          </div>
+
+                          <button
+                            onClick={handleResolve}
+                            disabled={
+                              actionLoading || !resolutionDetails || !resolutionImage
+                            }
+                            className="w-full bg-green-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {actionLoading ? (
+                              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                            ) : (
+                              <>
+                                <CheckCircle size={20} />
+                                <span>Mark as Resolved</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       )}
-                    </button>
-                  </div>
-                )}
+
+                      {/* Action Section - For generic status change */}
+                      {actionToTake && actionToTake !== "in_progress" && actionToTake !== "resolved" && (
+                        <div className="border-t border-gray-100 pt-6">
+                          <h3 className="font-semibold text-gray-900 mb-4">
+                            Change Status to {statusConfig[actionToTake]?.label || actionToTake}
+                          </h3>
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Remarks <span className="text-gray-400">(optional)</span>
+                            </label>
+                            <textarea
+                              value={departmentRemarks}
+                              onChange={(e) => setDepartmentRemarks(e.target.value)}
+                              rows={3}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
+                              placeholder="Add remarks for this status change..."
+                            />
+                          </div>
+                          <button
+                            onClick={handleStatusChange}
+                            disabled={actionLoading}
+                            className="w-full bg-maroon-800 text-white py-3 px-4 rounded-xl font-semibold hover:bg-maroon-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {actionLoading ? (
+                              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                            ) : (
+                              <>
+                                <CheckCircle size={20} />
+                                <span>Apply Status Change</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {/* Show resolution for resolved complaints */}
                 {selectedComplaint.status === "resolved" && (

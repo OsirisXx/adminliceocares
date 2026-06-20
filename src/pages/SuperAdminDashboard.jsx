@@ -245,7 +245,7 @@ const SuperAdminDashboard = () => {
         .single();
 
       if (error) {
-        console.error("Error fetching settings:", err);
+        console.error("Error fetching settings:", error);
         return;
       }
       if (data) {
@@ -320,31 +320,23 @@ const SuperAdminDashboard = () => {
 
       if (error) throw error;
     } else {
-      // Create new user with auth account
-      // First create the auth user
-      const { data: authData, error: authError } =
-        await supabase.auth.admin.createUser({
-          email: formData.email,
-          password: formData.password,
-          email_confirm: true, // Auto-confirm email
-          user_metadata: {
-            full_name: formData.full_name,
-          },
-        });
+      // Create new user using the secure RPC
+      const { data: userData, error: rpcError } = await supabase.rpc(
+        "create_user_admin",
+        {
+          user_email: formData.email,
+          user_password: formData.password,
+          user_full_name: formData.full_name,
+          user_role: formData.role,
+          user_department: formData.department,
+          user_is_active: formData.is_active,
+        }
+      );
 
-      if (authError) throw authError;
-
-      // Then create/update the user profile in our users table
-      const { error: profileError } = await supabase.from("users").upsert({
-        id: authData.user.id,
-        email: formData.email,
-        full_name: formData.full_name,
-        role: formData.role,
-        department: formData.department,
-        is_active: formData.is_active,
-      });
-
-      if (profileError) throw profileError;
+      if (rpcError) {
+        console.error("Error creating user via RPC:", rpcError);
+        throw new Error(rpcError.message || "Failed to create user");
+      }
     }
 
     await fetchUsers();
