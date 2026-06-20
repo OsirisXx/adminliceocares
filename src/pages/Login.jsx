@@ -160,7 +160,7 @@ const Login = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg p-1">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
               <img src="/ldcu.ico" alt="LDCU Logo" className="w-full h-full object-contain" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Staff Login</h2>
