@@ -183,8 +183,8 @@ const Layout = ({ children }) => {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <Link to="/" className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gold-500 rounded-full flex items-center justify-center">
-                <span className="text-maroon-800 font-bold text-lg">L</span>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white p-0.5">
+                <img src="/ldcu.ico" alt="LDCU Logo" className="w-full h-full object-contain" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-lg font-bold">Liceo Cares</h1>
