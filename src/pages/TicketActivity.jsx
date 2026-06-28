@@ -19,6 +19,7 @@ import {
   Calendar,
   Tag,
   Lock,
+  Image,
 } from "lucide-react";
 
 const TicketActivity = () => {
@@ -243,6 +244,29 @@ const TicketActivity = () => {
                     <div>
                       <p className="text-gray-500">Department</p>
                       <p className="font-medium text-gray-900 capitalize">{complaint.assigned_department}</p>
+                    </div>
+                  </div>
+                )}
+
+                {complaint.attachment_url && (
+                  <div className="pt-4 mt-4 border-t border-gray-100">
+                    <h4 className="font-medium text-gray-900 mb-3 text-sm">Attachments</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {complaint.attachment_url.split(',').map((url, i) => {
+                        const isImage = url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i);
+                        return (
+                          <a
+                            key={i}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center space-x-2 px-4 py-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors shadow-sm font-medium text-sm"
+                          >
+                            {isImage ? <Image size={16} /> : <FileText size={16} />}
+                            <span>View Attachment {i + 1}</span>
+                          </a>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -1689,27 +1689,36 @@ const DepartmentDashboard = () => {
                   </div>
                 )}
 
-                {/* Feedback Evidence Image */}
+                {/* Attachments */}
                 {selectedComplaint.attachment_url && (
                   <div>
                     <p className="text-sm text-gray-500 mb-2">
-                      Feedback Evidence
+                      Attachments
                     </p>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <img
-                        src={selectedComplaint.attachment_url}
-                        alt="Feedback Evidence"
-                        className="max-h-64 rounded-lg border border-gray-200 mb-2"
-                      />
-                      <a
-                        href={selectedComplaint.attachment_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-2 text-maroon-800 hover:text-maroon-600 text-sm"
-                      >
-                        <Eye size={16} />
-                        <span>View Full Image</span>
-                      </a>
+                    <div className="space-y-2">
+                      {selectedComplaint.attachment_url.split(',').map((url, i) => {
+                        const isImage = url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i);
+                        return (
+                          <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col space-y-3 h-full">
+                            {isImage && (
+                              <img
+                                src={url}
+                                alt={`Attachment ${i + 1}`}
+                                className="max-h-64 object-contain rounded-lg border border-gray-200"
+                              />
+                            )}
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-auto flex items-center justify-center space-x-2 w-full py-2.5 bg-white border-2 border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-800 hover:text-white transition-colors font-medium text-sm shadow-sm"
+                            >
+                              {isImage ? <Image size={18} /> : <FileText size={18} />}
+                              <span>View {isImage ? 'Full Image' : 'Document'}</span>
+                            </a>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

@@ -1363,9 +1363,9 @@ const AdminDashboard = () => {
         {/* Modal */}
         {showModal && selectedComplaint && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden">
               {/* Modal Header */}
-              <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+              <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">
                     Concern Details
@@ -1386,295 +1386,289 @@ const AdminDashboard = () => {
                   <X size={20} className="text-gray-500" />
                 </button>
               </div>
-
-              {/* Modal Body */}
-              <div className="p-6 space-y-6">
-                {/* Status Dropdown */}
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                      Status:
-                    </label>
-                    <div className="flex-1 flex flex-col sm:flex-row gap-3">
-                      <select
-                        value={newStatus || selectedComplaint.status}
-                        onChange={(e) => setNewStatus(e.target.value)}
-                        className={`flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white font-medium ${
-                          statusConfig[newStatus || selectedComplaint.status]
-                            ?.color
-                        }`}
-                      >
-                        <option value="submitted">Submitted</option>
-                        <option value="verified">Verified</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="backlog">Backlog</option>
-                        <option value="resolved">Resolved</option>
-                        <option value="closed">Closed</option>
-                        <option value="disputed">Disputed</option>
-                        <option value="rejected">Rejected</option>
-                      </select>
-                      {newStatus && newStatus !== selectedComplaint.status && (
-                        <button
-                          onClick={handleStatusChange}
-                          disabled={
-                            actionLoading ||
-                            (newStatus === "verified" &&
-                              !selectedComplaint.assigned_department &&
-                              !selectedDepartment)
-                          }
-                          className="px-4 py-2.5 bg-maroon-800 text-white rounded-xl font-medium hover:bg-maroon-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                        >
-                          {actionLoading ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                          ) : (
-                            <>
-                              <CheckCircle size={16} />
-                              <span>Update</span>
-                            </>
-                          )}
-                        </button>
-                      )}
+              {/* Modal Body - 2 Columns */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex flex-col lg:flex-row gap-8">
+                  {/* Left Column: Information */}
+                  <div className="flex-1 space-y-6">
+                    {/* Info Grid */}
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="bg-gray-50 rounded-xl p-4">
+                        <p className="text-sm text-gray-500 mb-1">Complainant</p>
+                        <p className="font-medium text-gray-900">
+                          {selectedComplaint.name}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-4">
+                        <p className="text-sm text-gray-500 mb-1">Email</p>
+                        <p className="font-medium text-gray-900 break-all">
+                          {selectedComplaint.email || "Not provided"}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-4">
+                        <p className="text-sm text-gray-500 mb-1">Category</p>
+                        <p className="font-medium text-gray-900 capitalize">
+                          {selectedComplaint.category}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-4">
+                        <p className="text-sm text-gray-500 mb-1">
+                          Student/Employee ID
+                        </p>
+                        <p className="font-medium text-gray-900">
+                          {selectedComplaint.student_id || "Not provided"}
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Show department selection if changing to verified and no department assigned */}
-                  {newStatus === "verified" &&
-                    !selectedComplaint.assigned_department && (
-                      <div className="mt-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Assign to Department{" "}
-                          <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          value={selectedDepartment}
-                          onChange={(e) =>
-                            setSelectedDepartment(e.target.value)
-                          }
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white"
-                        >
-                          <option value="">Select a department...</option>
-                          {departments.map((dept) => (
-                            <option key={dept.value} value={dept.value}>
-                              {dept.label}
-                            </option>
-                          ))}
-                        </select>
+                    {/* Description */}
+                    <div>
+                      <p className="text-sm text-gray-500 mb-2">Description</p>
+                      <div className="bg-gray-50 rounded-xl p-4">
+                        <p className="text-gray-700 whitespace-pre-wrap">
+                          {selectedComplaint.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Attachments */}
+                    {selectedComplaint.attachment_url && (
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2">Attachments</p>
+                        <div className="grid sm:grid-cols-2 gap-4">
+                          {selectedComplaint.attachment_url.split(',').map((url, i) => {
+                            const isImage = url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i);
+                            return (
+                              <div key={i} className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col space-y-3 h-full">
+                                {isImage && (
+                                  <img
+                                    src={url}
+                                    alt={`Attachment ${i + 1}`}
+                                    className="max-h-64 object-contain rounded-lg border border-gray-200"
+                                  />
+                                )}
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-auto flex items-center justify-center space-x-2 w-full py-2.5 bg-white border-2 border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-800 hover:text-white transition-colors font-medium text-sm shadow-sm"
+                                >
+                                  {isImage ? <Image size={18} /> : <FileText size={18} />}
+                                  <span>View {isImage ? 'Full Image' : 'Document'}</span>
+                                </a>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
-
-                  {/* Remarks for status change */}
-                  {newStatus && newStatus !== selectedComplaint.status && (
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Remarks{" "}
-                        <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <textarea
-                        value={remarks}
-                        onChange={(e) => setRemarks(e.target.value)}
-                        rows={2}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
-                        placeholder="Add remarks for this status change..."
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Info Grid */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-sm text-gray-500 mb-1">Complainant</p>
-                    <p className="font-medium text-gray-900">
-                      {selectedComplaint.name}
-                    </p>
                   </div>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-sm text-gray-500 mb-1">Email</p>
-                    <p className="font-medium text-gray-900">
-                      {selectedComplaint.email || "Not provided"}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-sm text-gray-500 mb-1">Category</p>
-                    <p className="font-medium text-gray-900 capitalize">
-                      {selectedComplaint.category}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-sm text-gray-500 mb-1">
-                      Student/Employee ID
-                    </p>
-                    <p className="font-medium text-gray-900">
-                      {selectedComplaint.student_id || "Not provided"}
-                    </p>
-                  </div>
-                </div>
 
-                {/* Description */}
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">Description</p>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-gray-700 whitespace-pre-wrap">
-                      {selectedComplaint.description}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Feedback Evidence Image */}
-                {selectedComplaint.attachment_url && (
-                  <div>
-                    <p className="text-sm text-gray-500 mb-2">
-                      Feedback Evidence
-                    </p>
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <img
-                        src={selectedComplaint.attachment_url}
-                        alt="Feedback Evidence"
-                        className="max-h-64 rounded-lg border border-gray-200 mb-2"
-                      />
-                      <a
-                        href={selectedComplaint.attachment_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-2 text-maroon-800 hover:text-maroon-600 text-sm"
-                      >
-                        <Eye size={18} />
-                        <span>View Full Image</span>
-                      </a>
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Section - Only for submitted complaints */}
-                {selectedComplaint.status === "submitted" && (
-                  <div className="border-t border-gray-100 pt-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">
-                      Take Action
-                    </h3>
-
-                    {/* Department Selection */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assign to Department
-                      </label>
-                      <div className="relative">
-                        <Building2
-                          size={20}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
+                  {/* Right Column: Actions */}
+                  <div className="lg:w-80 flex-shrink-0 space-y-6">
+                    {/* Status Update Block */}
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                      <h3 className="font-semibold text-gray-900 mb-4">Update Status</h3>
+                      <div className="space-y-4">
                         <select
-                          value={selectedDepartment}
-                          onChange={(e) => {
-                            setSelectedDepartment(e.target.value);
-                            setSelectedStaff("");
-                          }}
-                          className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none appearance-none bg-white"
+                          value={newStatus || selectedComplaint.status}
+                          onChange={(e) => setNewStatus(e.target.value)}
+                          className={`w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white font-medium ${
+                            statusConfig[newStatus || selectedComplaint.status]?.color
+                          }`}
                         >
-                          <option value="">Select a department...</option>
-                          {departments.map((dept) => (
-                            <option key={dept.value} value={dept.value}>
-                              {dept.label}
-                            </option>
-                          ))}
+                          <option value="submitted">Submitted</option>
+                          <option value="verified">Verified</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="backlog">Backlog</option>
+                          <option value="resolved">Resolved</option>
+                          <option value="closed">Closed</option>
+                          <option value="disputed">Disputed</option>
+                          <option value="rejected">Rejected</option>
                         </select>
-                        <ChevronDown
-                          size={20}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-                        />
+
+                        {/* Show department selection if changing to verified and no department assigned */}
+                        {newStatus === "verified" &&
+                          !selectedComplaint.assigned_department && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Assign Department
+                              </label>
+                              <select
+                                value={selectedDepartment}
+                                onChange={(e) => setSelectedDepartment(e.target.value)}
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white"
+                              >
+                                <option value="">Select a department...</option>
+                                {departments.map((dept) => (
+                                  <option key={dept.value} value={dept.value}>
+                                    {dept.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                        {newStatus && newStatus !== selectedComplaint.status && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Remarks <span className="text-gray-400">(optional)</span>
+                            </label>
+                            <textarea
+                              value={remarks}
+                              onChange={(e) => setRemarks(e.target.value)}
+                              rows={2}
+                              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
+                              placeholder="Add remarks..."
+                            />
+                            <button
+                              onClick={handleStatusChange}
+                              disabled={
+                                actionLoading ||
+                                (newStatus === "verified" &&
+                                  !selectedComplaint.assigned_department &&
+                                  !selectedDepartment)
+                              }
+                              className="w-full mt-3 px-4 py-2.5 bg-maroon-800 text-white rounded-xl font-medium hover:bg-maroon-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {actionLoading ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                              ) : (
+                                <>
+                                  <CheckCircle size={16} />
+                                  <span>Update</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Staff Selection - Shows after department is selected */}
-                    {selectedDepartment && (
-                      <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Assign to Staff Member
-                        </label>
-                        <div className="relative">
-                          <User
-                            size={20}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                          />
-                          <select
-                            value={selectedStaff}
-                            onChange={(e) => setSelectedStaff(e.target.value)}
-                            disabled={staffLoading}
-                            className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none appearance-none bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <option value="">
-                              {staffLoading
-                                ? "Loading staff..."
-                                : "Select a staff member..."}
-                            </option>
-                            {departmentStaff.map((staff) => (
-                              <option key={staff.value} value={staff.value}>
-                                {staff.label} ({staff.role})
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown
-                            size={20}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                    {/* Action Section - Only for submitted complaints */}
+                    {selectedComplaint.status === "submitted" && (
+                      <div className="bg-maroon-50 rounded-xl p-4 border border-maroon-100">
+                        <h3 className="font-semibold text-maroon-900 mb-4">
+                          Assign & Forward
+                        </h3>
+
+                        {/* Department Selection */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-maroon-800 mb-2">
+                            Department
+                          </label>
+                          <div className="relative">
+                            <Building2
+                              size={20}
+                              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                            />
+                            <select
+                              value={selectedDepartment}
+                              onChange={(e) => {
+                                setSelectedDepartment(e.target.value);
+                                setSelectedStaff("");
+                              }}
+                              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none appearance-none bg-white"
+                            >
+                              <option value="">Select department...</option>
+                              {departments.map((dept) => (
+                                <option key={dept.value} value={dept.value}>
+                                  {dept.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown
+                              size={20}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Staff Selection */}
+                        {selectedDepartment && (
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-maroon-800 mb-2">
+                              Staff Member
+                            </label>
+                            <div className="relative">
+                              <User
+                                size={20}
+                                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                              />
+                              <select
+                                value={selectedStaff}
+                                onChange={(e) => setSelectedStaff(e.target.value)}
+                                disabled={staffLoading}
+                                className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none appearance-none bg-white disabled:opacity-50"
+                              >
+                                <option value="">
+                                  {staffLoading ? "Loading..." : "Select staff..."}
+                                </option>
+                                {departmentStaff.map((staff) => (
+                                  <option key={staff.value} value={staff.value}>
+                                    {staff.label} ({staff.role})
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown
+                                size={20}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                              />
+                            </div>
+                            {departmentStaff.length === 0 && !staffLoading && (
+                              <p className="text-sm text-amber-600 mt-2">
+                                No staff found.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Remarks */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-maroon-800 mb-2">
+                            Remarks <span className="text-maroon-600/60">(optional)</span>
+                          </label>
+                          <textarea
+                            value={remarks}
+                            onChange={(e) => setRemarks(e.target.value)}
+                            rows={3}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
+                            placeholder="Add notes..."
                           />
                         </div>
-                        {departmentStaff.length === 0 && !staffLoading && (
-                          <p className="text-sm text-amber-600 mt-2">
-                            No staff members found in this department.
-                          </p>
-                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col space-y-3">
+                          <button
+                            onClick={handleApprove}
+                            disabled={
+                              actionLoading ||
+                              (!selectedDepartment && !selectedStaff)
+                            }
+                            className="w-full px-4 py-3 bg-maroon-800 text-white rounded-xl font-medium hover:bg-maroon-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {actionLoading ? (
+                              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                            ) : (
+                              <>
+                                <CheckCircle size={20} />
+                                <span>Approve & Assign</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={handleReject}
+                            disabled={actionLoading}
+                            className="w-full px-4 py-3 bg-white border-2 border-red-500 text-red-500 rounded-xl font-medium hover:bg-red-50 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
+                          >
+                            <XCircle size={20} />
+                            <span>Reject Complaint</span>
+                          </button>
+                        </div>
                       </div>
                     )}
-
-                    {/* Remarks */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Remarks{" "}
-                        <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <textarea
-                        value={remarks}
-                        onChange={(e) => setRemarks(e.target.value)}
-                        rows={3}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none resize-none"
-                        placeholder="Add any remarks or notes..."
-                      />
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={handleApprove}
-                        disabled={
-                          actionLoading || !selectedDepartment || !selectedStaff
-                        }
-                        className="flex-1 bg-green-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-green-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {actionLoading ? (
-                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                        ) : (
-                          <>
-                            <CheckCircle size={20} />
-                            <span>Approve & Assign</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={handleReject}
-                        disabled={actionLoading}
-                        className="flex-1 bg-red-600 text-white py-3 px-4 rounded-xl font-semibold hover:bg-red-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {actionLoading ? (
-                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                        ) : (
-                          <>
-                            <XCircle size={20} />
-                            <span>Reject</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
                   </div>
-                )}
+                </div>
 
                 {/* Show assigned department for verified complaints */}
                 {selectedComplaint.assigned_department && (
