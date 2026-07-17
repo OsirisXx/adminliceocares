@@ -1,59 +1,35 @@
-// Vercel Serverless Function to send emails via Resend SDK
+/* global process */
+import { queueEmail } from "../server/email-sender.js";
 
-import { Resend } from "resend";
+const fail = (status, message) => Object.assign(new Error(message), { status });
+const appUrl = () => (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+const anonKey = () => process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+async function supabaseGet(path, authorization) {
+  const response = await fetch(`${appUrl()}${path}`, { headers: { apikey: anonKey(), Authorization: authorization } });
+  if (!response.ok) throw fail(403, "You are not authorized to send this notification.");
+  return response.json();
+}
 
 export default async function handler(req, res) {
-    // Set CORS headers
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-    // Handle preflight
-    if (req.method === "OPTIONS") {
-        return res.status(200).end();
-    }
-
-    // Only allow POST requests
-    if (req.method !== "POST") {
-        return res.status(405).json({ error: "Method not allowed" });
-    }
-
-    const apiKey = process.env.RESEND_API_KEY;
-    
-    if (!apiKey) {
-        console.error("RESEND_API_KEY not configured");
-        return res.status(500).json({ 
-            error: "Email service not configured. RESEND_API_KEY is missing.",
-            debug: "Please add RESEND_API_KEY to your Vercel environment variables"
-        });
-    }
-
-    try {
-        const { to, subject, html } = req.body;
-
-        if (!to || !subject || !html) {
-            return res.status(400).json({ error: "Missing required fields: to, subject, html" });
-        }
-
-        // Initialize Resend with API key
-        const resend = new Resend(apiKey);
-
-        const { data, error } = await resend.emails.send({
-            from: "Liceo Cares <noreply@raijintech.dev>",
-            to: Array.isArray(to) ? to : [to],
-            subject,
-            html,
-        });
-
-        if (error) {
-            console.error("Resend API error:", error);
-            return res.status(500).json({ error: error.message || "Failed to send email" });
-        }
-
-        console.log("Email sent successfully:", data.id);
-        return res.status(200).json({ success: true, id: data.id });
-    } catch (error) {
-        console.error("Error sending email:", error);
-        return res.status(500).json({ error: error.message || "Unknown error occurred" });
-    }
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  try {
+    const { to, subject, html, referenceNumber } = req.body || {};
+    const authorization = req.headers.authorization;
+    const idempotencyKey = req.headers["idempotency-key"];
+    if (!appUrl() || !anonKey()) throw fail(500, "Supabase server configuration is missing.");
+    if (!authorization?.startsWith("Bearer ") || typeof to !== "string" || typeof subject !== "string" || typeof html !== "string" || typeof referenceNumber !== "string" || !idempotencyKey || idempotencyKey.length > 160) throw fail(400, "Invalid email request.");
+    const userResponse = await fetch(`${appUrl()}/auth/v1/user`, { headers: { apikey: anonKey(), Authorization: authorization } });
+    if (!userResponse.ok) throw fail(401, "Your session is no longer valid.");
+    const user = await userResponse.json();
+    const [profile] = await supabaseGet(`/rest/v1/users?select=role,department&id=eq.${encodeURIComponent(user.id)}`, authorization);
+    if (!profile || !["admin", "super_admin", "department"].includes(profile.role)) throw fail(403, "Only authorized staff can queue ticket notifications.");
+    const [complaint] = await supabaseGet(`/rest/v1/complaints?select=email,assigned_to,assigned_department&reference_number=eq.${encodeURIComponent(referenceNumber)}`, authorization);
+    if (!complaint?.email || complaint.email.toLowerCase() !== to.toLowerCase()) throw fail(403, "The notification recipient does not match this ticket.");
+    if (profile.role === "department" && complaint.assigned_to !== user.id) throw fail(403, "This ticket is not assigned to you.");
+    const queued = await queueEmail({ to, subject, html, idempotencyKey, tags: { app: "admin-liceo-cares", event: "ticket-notification", reference: referenceNumber } });
+    return res.status(202).json({ success: true, id: queued.id, status: queued.status });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message || "Unable to queue email." });
+  }
 }
