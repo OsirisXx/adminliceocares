@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -56,6 +56,7 @@ import {
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +82,18 @@ const AdminDashboard = () => {
   const [columnCount, setColumnCount] = useState(1);
   const [departments, setDepartments] = useState([]);
   const [chartTimeRange, setChartTimeRange] = useState("all");
+
+  useEffect(() => {
+    if (!location.hash) return undefined;
+
+    const timer = window.setTimeout(() => {
+      document
+        .getElementById(location.hash.slice(1))
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [location.hash]);
 
   // Fetch departments from database
   useEffect(() => {
@@ -543,77 +556,66 @@ const AdminDashboard = () => {
     rejected: complaints.filter((c) => c.status === "rejected").length,
   };
 
+  const statCards = [
+    { label: "Total", value: stats.total, accent: "bg-gray-700", valueClass: "text-gray-950" },
+    { label: "Pending", value: stats.submitted, accent: "bg-blue-500", valueClass: "text-blue-700" },
+    { label: "Verified", value: stats.verified, accent: "bg-gold-500", valueClass: "text-gold-700" },
+    { label: "In progress", value: stats.inProgress, accent: "bg-orange-500", valueClass: "text-orange-700" },
+    { label: "Backlog", value: stats.backlog, accent: "bg-purple-500", valueClass: "text-purple-700" },
+    { label: "Resolved", value: stats.resolved, accent: "bg-green-500", valueClass: "text-green-700" },
+    { label: "Closed", value: stats.closed, accent: "bg-gray-400", valueClass: "text-gray-700" },
+    { label: "Disputed", value: stats.disputed, accent: "bg-amber-500", valueClass: "text-amber-700" },
+    { label: "Rejected", value: stats.rejected, accent: "bg-red-500", valueClass: "text-red-700" },
+  ];
+
   return (
-    <div className="min-h-[calc(100vh-200px)] py-8 px-4 sm:px-6 lg:px-8 bg-gray-50">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="w-12 h-12 bg-maroon-800 rounded-xl flex items-center justify-center">
-              <Shield size={24} className="text-gold-400" />
+    <div id="overview" className="min-h-[calc(100vh-200px)] scroll-mt-20 bg-[#f7f7f8] px-4 py-8 sm:px-6 lg:px-8 lg:scroll-mt-8">
+      <div className="mx-auto max-w-[1440px]">
+        {/* Workspace header */}
+        <header className="mb-7 flex flex-col gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-maroon-800 shadow-sm">
+              <Shield size={21} className="text-gold-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Admin Dashboard
-              </h1>
-              <p className="text-gray-600">Verify and manage concerns</p>
+              <p className="mb-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-maroon-700">Administration</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-950">Admin Dashboard</h1>
+              <p className="text-sm text-gray-500">Review, verify, and route incoming concerns.</p>
             </div>
           </div>
-        </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-2 text-xs font-medium text-gray-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              Concern queue
+            </span>
+            <button
+              type="button"
+              onClick={fetchComplaints}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-maroon-300 hover:bg-maroon-50 hover:text-maroon-800"
+            >
+              <RefreshCw size={16} />
+              Refresh
+            </button>
+          </div>
+        </header>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <p className="text-sm text-gray-500">Total</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-blue-100 shadow-sm">
-            <p className="text-sm text-blue-600">Pending</p>
-            <p className="text-2xl font-bold text-blue-700">
-              {stats.submitted}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-gold-100 shadow-sm">
-            <p className="text-sm text-gold-600">Verified</p>
-            <p className="text-2xl font-bold text-gold-700">{stats.verified}</p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-orange-100 shadow-sm">
-            <p className="text-sm text-orange-600">In Progress</p>
-            <p className="text-2xl font-bold text-orange-700">
-              {stats.inProgress}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-purple-100 shadow-sm">
-            <p className="text-sm text-purple-600">Backlog</p>
-            <p className="text-2xl font-bold text-purple-700">
-              {stats.backlog}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-green-100 shadow-sm">
-            <p className="text-sm text-green-600">Resolved</p>
-            <p className="text-2xl font-bold text-green-700">
-              {stats.resolved}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <p className="text-sm text-gray-600">Closed</p>
-            <p className="text-2xl font-bold text-gray-700">{stats.closed}</p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
-            <p className="text-sm text-amber-600">Disputed</p>
-            <p className="text-2xl font-bold text-amber-700">
-              {stats.disputed}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-red-100 shadow-sm">
-            <p className="text-sm text-red-600">Rejected</p>
-            <p className="text-2xl font-bold text-red-700">{stats.rejected}</p>
-          </div>
-        </div>
+        {/* Queue summary */}
+        <section aria-label="Concern status summary" className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
+          {statCards.map(({ label, value, accent, valueClass }) => (
+            <div
+              key={label}
+              className="relative overflow-hidden rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:border-maroon-200"
+            >
+              <span className={`absolute inset-y-0 left-0 w-1 ${accent}`} />
+              <p className="truncate pl-1 text-xs font-medium text-gray-500">{label}</p>
+              <p className={`pl-1 pt-1 text-2xl font-semibold tracking-tight ${valueClass}`}>{value}</p>
+            </div>
+          ))}
+        </section>
 
         {/* Complaints Trend Area Chart */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-8">
-          <div className="p-6 pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div id="analytics" className="scroll-mt-20 mb-8 rounded-lg border border-gray-200 bg-white shadow-sm lg:scroll-mt-8">
+          <div className="flex flex-col gap-4 border-b border-gray-100 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
                 Complaints Overview
@@ -622,7 +624,7 @@ const AdminDashboard = () => {
                 Showing feedback statistics by status
               </p>
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
               {[
                 { value: "1d", label: "1D" },
                 { value: "7d", label: "7D" },
@@ -635,10 +637,10 @@ const AdminDashboard = () => {
                 <button
                   key={range.value}
                   onClick={() => setChartTimeRange(range.value)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                     chartTimeRange === range.value
-                      ? "bg-maroon-800 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      ? "bg-maroon-800 text-white shadow-sm"
+                      : "text-gray-600 hover:bg-white hover:text-gray-900"
                   }`}
                 >
                   {range.label}
@@ -811,7 +813,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-6">
+        <div id="concerns" className="scroll-mt-20 bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-6 lg:scroll-mt-8">
           <div className="flex flex-col gap-4">
             {/* Search Row */}
             <div className="relative">

@@ -1,113 +1,72 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { AlertCircle, ShieldX, Loader2 } from "lucide-react";
 
-// Persistent logger — survives page navigation
-const plog = (msg, data) => {
-  const entry = `[${new Date().toISOString()}] ${msg}` + (data !== undefined ? `: ${JSON.stringify(data)}` : "");
-  console.log(entry);
-  const existing = JSON.parse(sessionStorage.getItem("auth_debug") || "[]");
-  existing.push(entry);
-  sessionStorage.setItem("auth_debug", JSON.stringify(existing.slice(-30))); // keep last 30
-};
+const CALLBACK_TIMEOUT_MS = 8000;
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [accessDenied, setAccessDenied] = useState(false);
   const [status, setStatus] = useState("Processing login...");
-  const [debugLogs, setDebugLogs] = useState([]);
-
-  // On mount, show any logs from previous navigation
-  useEffect(() => {
-    const previous = JSON.parse(sessionStorage.getItem("auth_debug") || "[]");
-    if (previous.length) setDebugLogs(previous);
-    sessionStorage.removeItem("auth_debug");
-  }, []);
+  const processedUserId = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
+    let subscription;
+    let timeoutId;
 
-    plog("AuthCallback mounted", { url: window.location.href });
+    const showError = (message) => {
+      if (isMounted) setError(message);
+    };
+
+    const denyAccess = async () => {
+      if (isMounted) {
+        setStatus("");
+        setAccessDenied(true);
+      }
+      await supabase.auth.signOut();
+    };
 
     const handleAuthCallback = async (session) => {
-      plog("handleAuthCallback called");
-      plog("User ID", session?.user?.id);
-      plog("User Email", session?.user?.email);
+      if (!session?.user || processedUserId.current === session.user.id) return;
+      processedUserId.current = session.user.id;
 
       try {
-        if (!session?.user) {
-          plog("ERROR: No user in session");
-          if (isMounted) setError("No session found. Please try logging in again.");
-          return;
-        }
-
         if (isMounted) setStatus("Checking your account permissions...");
 
-        // Query by ID first
-        plog("Querying users table by ID", session.user.id);
-        const { data: userDataById, error: idError } = await supabase
+        const { data: userDataById } = await supabase
           .from("users")
           .select("id, role, department, email")
           .eq("id", session.user.id)
-          .single();
-
-        plog("Query by ID result", { data: userDataById, error: idError?.message });
+          .maybeSingle();
 
         let userData = userDataById;
-
-        // Fallback: Query by email
         if (!userData && session.user.email) {
-          plog("ID lookup failed, trying email", session.user.email);
-          const { data: userDataByEmail, error: emailError } = await supabase
+          const { data: userDataByEmail } = await supabase
             .from("users")
             .select("id, role, department, email")
             .eq("email", session.user.email)
-            .single();
-
-          plog("Query by email result", { data: userDataByEmail, error: emailError?.message });
+            .maybeSingle();
           userData = userDataByEmail;
         }
 
-        plog("Final userData", userData);
-
-        // If still no user found - block access (don't auto-create as student)
         if (!userData) {
-          plog("ERROR: No user record found in users table - blocking access");
-          if (isMounted) {
-            setStatus("");
-            setAccessDenied(true);
-          }
-          await supabase.auth.signOut();
+          await denyAccess();
           return;
         }
 
-        const userRole = userData.role;
-        const userDepartment = userData.department;
-
-        plog("User role", { role: userRole, department: userDepartment });
-
-        // BLOCK students from accessing admin panel
-        if (userRole === "student") {
-          plog("BLOCKED: Student role not allowed on admin panel");
-          if (isMounted) setAccessDenied(true);
-          await supabase.auth.signOut();
+        const { role: userRole, department: userDepartment } = userData;
+        if (
+          userRole === "student" ||
+          ((userRole === "employee" || userRole === "faculty" || userRole === "department") && !userDepartment)
+        ) {
+          await denyAccess();
           return;
         }
 
-        // BLOCK unverified users (employees without department assignment)
-        if ((userRole === "employee" || userRole === "faculty" || userRole === "department") && !userDepartment) {
-          plog("BLOCKED: No department assigned");
-          if (isMounted) setAccessDenied(true);
-          await supabase.auth.signOut();
-          return;
-        }
-
-        // Redirect based on role
-        plog("SUCCESS: Redirecting user with role", userRole);
         if (isMounted) setStatus("Access granted! Redirecting...");
-
         if (userRole === "super_admin") {
           navigate("/super-admin", { replace: true });
         } else if (userRole === "admin") {
@@ -115,39 +74,55 @@ const AuthCallback = () => {
         } else if (userRole === "department" || userRole === "faculty" || userRole === "employee") {
           navigate("/department", { replace: true });
         } else {
-          plog("BLOCKED: Unknown role", userRole);
-          if (isMounted) setAccessDenied(true);
-          await supabase.auth.signOut();
+          await denyAccess();
         }
-      } catch (err) {
-        plog("EXCEPTION", err.message);
-        if (isMounted) setError(`Authentication error: ${err.message}`);
+      } catch {
+        showError("We could not verify your account permissions. Please try again or contact an administrator.");
       }
     };
 
-    // Listen for SIGNED_IN (this fires after OAuth redirect)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      plog("onAuthStateChange", { event, email: session?.user?.email });
-      if (event === "SIGNED_IN" && session?.user) {
-        handleAuthCallback(session);
-      }
-    });
-
-    // Also check existing session (in case the page was refreshed)
-    supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
-      plog("getSession", { email: session?.user?.email, error: sessionError?.message });
-      if (sessionError) {
-        if (isMounted) setError(sessionError.message);
+    const resolveSession = async () => {
+      const callbackError = new URLSearchParams(window.location.search).get("error");
+      if (callbackError) {
+        showError("Google sign-in was not completed. Please return to login and try again.");
         return;
       }
-      if (session?.user) {
-        handleAuthCallback(session);
+
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          showError("We could not complete your sign-in. Please try again.");
+          return;
+        }
+
+        if (session?.user) {
+          await handleAuthCallback(session);
+          return;
+        }
+
+        const authState = supabase.auth.onAuthStateChange((event, newSession) => {
+          if (event === "SIGNED_IN" && newSession?.user) {
+            window.clearTimeout(timeoutId);
+            subscription?.unsubscribe();
+            handleAuthCallback(newSession);
+          }
+        });
+        subscription = authState.data.subscription;
+        timeoutId = window.setTimeout(() => {
+          subscription?.unsubscribe();
+          showError("Sign-in timed out. Please return to login and try again.");
+        }, CALLBACK_TIMEOUT_MS);
+      } catch {
+        showError("An error occurred during authentication. Please try again.");
       }
-    });
+    };
+
+    resolveSession();
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      window.clearTimeout(timeoutId);
+      subscription?.unsubscribe();
     };
   }, [navigate]);
 
@@ -206,20 +181,11 @@ const AuthCallback = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center flex-col gap-4 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-8">
       <div className="text-center">
         <Loader2 size={48} className="animate-spin text-maroon-800 mx-auto mb-4" />
         <p className="text-gray-600 font-medium">{status}</p>
       </div>
-      {/* Debug panel - visible on screen */}
-      {debugLogs.length > 0 && (
-        <div className="w-full max-w-2xl bg-black/90 rounded-xl p-4 text-left mt-4">
-          <p className="text-yellow-400 font-bold text-xs mb-2">🔍 Auth Debug Log (send this to your developer):</p>
-          {debugLogs.map((log, i) => (
-            <p key={i} className="text-green-400 text-xs font-mono break-all">{log}</p>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

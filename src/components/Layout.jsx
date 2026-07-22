@@ -12,12 +12,14 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
+import { AdminSidebar } from "./AdminSidebar.jsx";
 
 const Layout = ({ children }) => {
   const { user, userRole, userDepartment, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [adminSidebarCollapsed, setAdminSidebarCollapsed] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -174,6 +176,40 @@ const Layout = ({ children }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const isAdminWorkspace =
+    userRole === "admin" &&
+    (location.pathname === "/admin" ||
+      location.pathname === "/track" ||
+      location.pathname.startsWith("/ticket/"));
+
+  if (isAdminWorkspace) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <AdminSidebar
+          user={user}
+          location={location}
+          notifications={notifications}
+          unreadCount={unreadCount}
+          showNotifications={showNotifications}
+          notificationRef={notificationRef}
+          onToggleNotifications={() => setShowNotifications((isOpen) => !isOpen)}
+          onNotificationClick={handleNotificationClick}
+          formatNotificationTime={formatNotificationTime}
+          onSignOut={handleSignOut}
+          collapsed={adminSidebarCollapsed}
+          onToggleCollapsed={() => setAdminSidebarCollapsed((isCollapsed) => !isCollapsed)}
+        />
+        <main
+          className={`min-h-screen min-w-0 pt-16 transition-[padding] duration-300 lg:pt-0 ${
+            adminSidebarCollapsed ? "lg:pl-16" : "lg:pl-72"
+          }`}
+        >
+          {children}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -465,7 +501,7 @@ const Layout = ({ children }) => {
               </div>
             </div>
             <div className="text-sm text-gray-400">
-              © {new Date().getFullYear()} Liceo Cares. All rights reserved.
+              Â© {new Date().getFullYear()} Liceo Cares. All rights reserved.
             </div>
           </div>
         </div>
