@@ -154,7 +154,7 @@ const UserModal = ({ isOpen, onClose, user, onSave, departments }) => {
             <p className="text-xs text-gray-500 mt-1">
               {formData.role === 'admin' && 'Administrative personnel (not system admin)'}
               {formData.role === 'super_admin' && 'Highest system access level'}
-              {formData.role === 'department' && 'Can manage department complaints'}
+              {formData.role === 'department' && 'Can manage department feedback'}
               {formData.role === 'faculty' && 'Teaching staff member'}
               {formData.role === 'employee' && 'Non-teaching staff member'}
               {formData.role === 'student' && 'Enrolled student'}

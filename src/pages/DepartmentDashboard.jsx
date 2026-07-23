@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { notifyTicketOpened } from "../lib/notificationEvents";
 import { useAuth } from "../contexts/AuthContext";
 import {
   sendTicketInProgressEmail,
@@ -51,6 +52,7 @@ const DepartmentDashboard = () => {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [activityCounts, setActivityCounts] = useState({});
   const [showModal, setShowModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
@@ -63,7 +65,6 @@ const DepartmentDashboard = () => {
   const [imageError, setImageError] = useState("");
   const [departmentInfo, setDepartmentInfo] = useState(null);
   const [newStatus, setNewStatus] = useState("");
-  const [showStatusChangeSection, setShowStatusChangeSection] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState("");
   const [departmentStaff, setDepartmentStaff] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
@@ -97,6 +98,28 @@ const DepartmentDashboard = () => {
   }, [userDepartment]);
 
   // Get department display name
+  const openTicket = (complaint) => {
+    setActivityCounts((previous) => {
+      if (!previous[complaint.id]) return previous;
+      const next = { ...previous };
+      delete next[complaint.id];
+      return next;
+    });
+    notifyTicketOpened(complaint);
+    navigate(`/ticket/${complaint.reference_number}`);
+  };
+
+  const renderUnreadBadge = (complaintId) => {
+    const count = activityCounts[complaintId] || 0;
+    if (!count) return null;
+
+    return (
+      <span className="absolute -right-2 -top-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-maroon-800 px-1 text-[9px] font-semibold leading-none text-white">
+        {count > 99 ? "99+" : count}
+      </span>
+    );
+  };
+
   const getDepartmentName = () => {
     if (departmentInfo?.name) return departmentInfo.name;
     // Fallback to formatted code
@@ -136,6 +159,11 @@ const DepartmentDashboard = () => {
     disputed: {
       label: "Disputed",
       color: "bg-amber-100 text-amber-800",
+      icon: AlertCircle,
+    },
+    rejected: {
+      label: "Rejected",
+      color: "bg-red-100 text-red-800",
       icon: AlertCircle,
     },
   };
@@ -185,28 +213,69 @@ const DepartmentDashboard = () => {
   const fetchComplaints = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from("complaints")
-        .select("*")
-        .eq("assigned_to", user.id)
-        .in("status", [
-          "verified",
-          "in_progress",
-          "backlog",
-          "resolved",
-          "closed",
-          "disputed",
-        ])
-        .order("created_at", { ascending: false });
+      const buildQuery = (column, value) => {
+        let query = supabase
+          .from("complaints")
+          .select("*")
+          .eq(column, value)
+          .in("status", [
+            "verified",
+            "in_progress",
+            "backlog",
+            "resolved",
+            "closed",
+            "disputed",
+            "rejected",
+          ])
+          .order("created_at", { ascending: false });
 
-      if (filterStatus !== "all") {
-        query = query.eq("status", filterStatus);
+        if (filterStatus !== "all") {
+          query = query.eq("status", filterStatus);
+        }
+
+        return query;
+      };
+
+      const [assignedToResult, departmentResult] = await Promise.all([
+        buildQuery("assigned_to", user.id),
+        buildQuery("assigned_department", userDepartment),
+      ]);
+      const queryErrors = [assignedToResult.error, departmentResult.error].filter(Boolean);
+
+      if (queryErrors.length === 2) throw queryErrors[0];
+      if (queryErrors.length > 0) {
+        console.warn("Department assignment query was partially unavailable:", queryErrors[0]);
       }
 
-      const { data, error } = await query;
+      const complaintsById = new Map();
+      [...(assignedToResult.data || []), ...(departmentResult.data || [])].forEach(
+        (complaint) => complaintsById.set(complaint.id, complaint)
+      );
+      const loadedComplaints = [...complaintsById.values()].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+      );
+      setComplaints(loadedComplaints);
+      setActivityCounts({});
 
-      if (error) throw error;
-      setComplaints(data || []);
+      const complaintIds = loadedComplaints.map(({ id }) => id);
+      if (!complaintIds.length) return;
+
+      const { data: unreadNotifications, error: notificationError } = await supabase
+        .from("system_notifications")
+        .select("reference_id")
+        .eq("is_read", false)
+        .in("reference_id", complaintIds);
+
+      if (notificationError) {
+        console.error("Error fetching unread ticket notifications:", notificationError);
+        return;
+      }
+
+      const counts = {};
+      (unreadNotifications || []).forEach(({ reference_id: complaintId }) => {
+        counts[complaintId] = (counts[complaintId] || 0) + 1;
+      });
+      setActivityCounts(counts);
     } catch (err) {
       console.error("Error fetching complaints:", err);
     } finally {
@@ -429,7 +498,6 @@ const DepartmentDashboard = () => {
       setSelectedComplaint(null);
       setDepartmentRemarks("");
       setNewStatus("");
-      setShowStatusChangeSection(false);
       fetchComplaints();
     } catch (err) {
       console.error("Error changing status:", err);
@@ -542,6 +610,64 @@ const DepartmentDashboard = () => {
     rejected: complaints.filter((c) => c.status === "rejected").length,
   };
 
+  const chartRangeDays = {
+    "1d": 1,
+    "7d": 7,
+    "1m": 30,
+    "3m": 90,
+    "6m": 180,
+    "1y": 365,
+  };
+  const chartRangeLabels = {
+    "1d": "the last 24 hours",
+    "7d": "the last 7 days",
+    "1m": "the last 30 days",
+    "3m": "the last 3 months",
+    "6m": "the last 6 months",
+    "1y": "the last year",
+    all: "all time",
+  };
+  const chartCutoff = chartRangeDays[chartTimeRange]
+    ? new Date(Date.now() - chartRangeDays[chartTimeRange] * 24 * 60 * 60 * 1000)
+    : null;
+  const chartComplaints = complaints.filter((complaint) => {
+    const createdAt = new Date(complaint.created_at);
+    return !Number.isNaN(createdAt.getTime()) && (!chartCutoff || createdAt >= chartCutoff);
+  });
+  const isHourlyChart = chartTimeRange === "1d";
+  const isMonthlyChart = ["3m", "6m", "1y", "all"].includes(chartTimeRange);
+  const chartDateLabelOptions = isHourlyChart
+    ? { hour: "numeric", minute: "2-digit" }
+    : isMonthlyChart
+      ? { month: "short", year: "numeric" }
+      : { month: "short", day: "numeric" };
+  const chartBuckets = new Map();
+
+  chartComplaints.forEach((complaint) => {
+    const bucketDate = new Date(complaint.created_at);
+
+    if (isHourlyChart) {
+      bucketDate.setMinutes(0, 0, 0);
+    } else if (isMonthlyChart) {
+      bucketDate.setDate(1);
+      bucketDate.setHours(0, 0, 0, 0);
+    } else {
+      bucketDate.setHours(0, 0, 0, 0);
+    }
+
+    const timestamp = bucketDate.getTime();
+    const bucket = chartBuckets.get(timestamp) || {
+      date: bucketDate.toLocaleDateString("en-US", chartDateLabelOptions),
+      timestamp,
+      count: 0,
+    };
+    bucket.count += 1;
+    chartBuckets.set(timestamp, bucket);
+  });
+
+  const chartData = [...chartBuckets.values()].sort((a, b) => a.timestamp - b.timestamp);
+  const chartTotal = chartComplaints.length;
+
   return (
     <div className="min-h-[calc(100vh-200px)] py-8 px-4 sm:px-6 lg:px-8 bg-gray-50">
       <div className="max-w-7xl mx-auto">
@@ -604,12 +730,113 @@ const DepartmentDashboard = () => {
           </div>
         </div>
 
-        {/* Complaints Trend Area Chart */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm mb-8">
+        {/* Feedback volume trend */}
+        <section id="analytics" className="mb-8 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm scroll-mt-20">
+          <div className="flex flex-col gap-4 border-b border-gray-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Feedback over time</h3>
+              <p className="text-sm text-gray-500">
+                New feedback received by date for {getDepartmentName()}.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+              {[
+                { value: "1d", label: "1D" },
+                { value: "7d", label: "7D" },
+                { value: "1m", label: "1M" },
+                { value: "3m", label: "3M" },
+                { value: "6m", label: "6M" },
+                { value: "1y", label: "1Y" },
+                { value: "all", label: "All" },
+              ].map((range) => (
+                <button
+                  key={range.value}
+                  type="button"
+                  aria-pressed={chartTimeRange === range.value}
+                  onClick={() => setChartTimeRange(range.value)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    chartTimeRange === range.value
+                      ? "bg-maroon-800 text-white shadow-sm"
+                      : "text-gray-600 hover:bg-white hover:text-gray-900"
+                  }`}
+                >
+                  {range.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="p-6 pt-2">
+            <div className="h-72" role="img" aria-label="New department feedback received over time">
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ left: -20, right: 12, top: 10, bottom: 0 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      minTickGap={28}
+                      tick={{ fontSize: 11, fill: "#6b7280" }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickCount={5}
+                      allowDecimals={false}
+                      tick={{ fontSize: 11, fill: "#6b7280" }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: "8px",
+                        border: "1px solid #e5e7eb",
+                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                      }}
+                      labelFormatter={(label) => `Received: ${label}`}
+                      formatter={(value) => [
+                        `${value} ${value === 1 ? "feedback item" : "feedback items"}`,
+                        "New feedback",
+                      ]}
+                    />
+                    <Area
+                      dataKey="count"
+                      type="monotone"
+                      fill="#7C2D2D"
+                      fillOpacity={0.4}
+                      stroke="#7C2D2D"
+                      strokeWidth={2}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
+                      name="New feedback"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-center">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">No feedback received</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      There is no feedback from {chartRangeLabels[chartTimeRange]}.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 border-t border-gray-100 px-6 pb-6 pt-4 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+            <span className="font-medium text-gray-900">
+              {chartTotal} {chartTotal === 1 ? "feedback item" : "feedback items"} received {chartRangeLabels[chartTimeRange]}
+            </span>
+            <span>Hover a point to see the exact date and total.</span>
+          </div>
+        </section>
+
+        {/* Legacy status chart retained below for now */}
+        <div className="hidden bg-white rounded-xl border border-gray-100 shadow-sm mb-8">
           <div className="p-6 pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
-                Complaints Overview
+                Feedback Overview
               </h3>
               <p className="text-sm text-gray-500">
                 Showing feedback statistics by status
@@ -747,7 +974,7 @@ const DepartmentDashboard = () => {
                       border: "1px solid #e5e7eb",
                       boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
                     }}
-                    formatter={(value, name) => [value, "Count"]}
+                    formatter={(value) => [value, "Count"]}
                   />
                   <Area
                     dataKey="count"
@@ -756,7 +983,7 @@ const DepartmentDashboard = () => {
                     fillOpacity={0.4}
                     stroke="#7C2D2D"
                     strokeWidth={2}
-                    name="Complaints"
+                    name="Feedback"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -788,7 +1015,30 @@ const DepartmentDashboard = () => {
                   }
                   return filteredComplaints.length;
                 })()}{" "}
-                complaints
+                {(() => {
+                  const now = new Date();
+                  let filteredComplaints = complaints;
+                  if (chartTimeRange !== "all") {
+                    const ranges = {
+                      "1d": 1,
+                      "7d": 7,
+                      "1m": 30,
+                      "3m": 90,
+                      "6m": 180,
+                      "1y": 365,
+                    };
+                    const daysAgo = ranges[chartTimeRange] || 365;
+                    const cutoffDate = new Date(
+                      now.getTime() - daysAgo * 24 * 60 * 60 * 1000
+                    );
+                    filteredComplaints = complaints.filter(
+                      (c) => new Date(c.created_at) >= cutoffDate
+                    );
+                  }
+                  return filteredComplaints.length === 1
+                    ? "feedback item"
+                    : "feedback items";
+                })()}
               </span>
               <span className="text-gold-600">
                 {(() => {
@@ -920,7 +1170,7 @@ const DepartmentDashboard = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-6">
+        <div id="concerns" className="scroll-mt-20 bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-6">
           <div className="flex flex-col gap-4">
             {/* Search Row */}
             <div className="relative">
@@ -954,6 +1204,7 @@ const DepartmentDashboard = () => {
                 <option value="resolved">Resolved</option>
                 <option value="closed">Closed</option>
                 <option value="disputed">Disputed</option>
+                <option value="rejected">Rejected</option>
               </select>
               <select
                 value={filterCategory}
@@ -1116,7 +1367,7 @@ const DepartmentDashboard = () => {
                 {listLayout === "list" && paginationEnabled
                   ? `Showing ${paginatedComplaints.length} of ${filteredComplaints.length}`
                   : `${filteredComplaints.length}`}{" "}
-                concern{filteredComplaints.length !== 1 ? "s" : ""}
+                {filteredComplaints.length === 1 ? "feedback item" : "feedback items"}
               </span>
             </div>
           </div>
@@ -1185,11 +1436,12 @@ const DepartmentDashboard = () => {
                                 {complaint.category}
                               </span>
                               <button
-                                onClick={(e) => { e.stopPropagation(); navigate(`/ticket/${complaint.reference_number}`); }}
-                                className="p-1.5 text-gray-400 hover:text-maroon-700 hover:bg-maroon-50 rounded-lg transition-colors"
+                                onClick={(e) => { e.stopPropagation(); openTicket(complaint); }}
+                                className="relative p-1.5 text-gray-400 hover:text-maroon-700 hover:bg-maroon-50 rounded-lg transition-colors"
                                 title="View Discussion"
                               >
                                 <MessageSquare size={14} />
+                                {renderUnreadBadge(complaint.id)}
                               </button>
                             </div>
                           </div>
@@ -1220,13 +1472,13 @@ const DepartmentDashboard = () => {
           {loading ? (
             <div className="bg-white rounded-xl p-12 text-center border border-gray-100 shadow-sm">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-maroon-800 border-t-transparent mx-auto"></div>
-              <p className="text-gray-500 mt-4">Loading complaints...</p>
+              <p className="text-gray-500 mt-4">Loading feedback...</p>
             </div>
           ) : paginatedComplaints.length === 0 ? (
             <div className="bg-white rounded-xl p-12 text-center border border-gray-100 shadow-sm">
               <FileText size={48} className="text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">
-                No complaints assigned to your department
+                No feedback assigned to your department
               </p>
             </div>
           ) : (
@@ -1264,13 +1516,12 @@ const DepartmentDashboard = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() =>
-                              navigate(`/ticket/${complaint.reference_number}`)
-                            }
-                            className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                            onClick={() => openTicket(complaint)}
+                            className="relative p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                             title="View Activity"
                           >
                             <MessageSquare size={16} />
+                            {renderUnreadBadge(complaint.id)}
                           </button>
                           <button
                             onClick={() => {
@@ -1308,13 +1559,12 @@ const DepartmentDashboard = () => {
                         </p>
                         <div className="flex items-center gap-2 mt-auto">
                           <button
-                            onClick={() =>
-                              navigate(`/ticket/${complaint.reference_number}`)
-                            }
-                            className="flex-1 p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-xs flex items-center justify-center gap-1"
+                            onClick={() => openTicket(complaint)}
+                            className="relative flex-1 p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-xs flex items-center justify-center gap-1"
                             title="View Activity"
                           >
                             <MessageSquare size={14} />
+                            {renderUnreadBadge(complaint.id)}
                             <span className={columnCount >= 3 ? "hidden" : ""}>
                               Activity
                             </span>
@@ -1471,7 +1721,7 @@ const DepartmentDashboard = () => {
                     {!isNarrowColumn && (
                       <div className="flex items-center space-x-2 text-sm text-gray-500">
                         <MessageSquare size={16} />
-                        <span>Complaint #{complaint.id}</span>
+                        <span>Feedback item #{complaint.id}</span>
                       </div>
                     )}
                     <div
@@ -1480,14 +1730,13 @@ const DepartmentDashboard = () => {
                       }`}
                     >
                       <button
-                        onClick={() =>
-                          navigate(`/ticket/${complaint.reference_number}`)
-                        }
-                        className={`inline-flex items-center justify-center space-x-1 px-3 py-2 border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors font-medium ${
+                        onClick={() => openTicket(complaint)}
+                        className={`relative inline-flex items-center justify-center space-x-1 px-3 py-2 border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors font-medium ${
                           isMultiColumn ? "flex-1 text-xs" : "text-sm"
                         }`}
                       >
                         <MessageSquare size={isNarrowColumn ? 14 : 16} />
+                        {renderUnreadBadge(complaint.id)}
                         {!isNarrowColumn && <span>View Activity</span>}
                       </button>
                       <button
@@ -1640,7 +1889,7 @@ const DepartmentDashboard = () => {
                 {/* Info Grid */}
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-sm text-gray-500 mb-1">Complainant</p>
+                    <p className="text-sm text-gray-500 mb-1">Submitter</p>
                     <p className="font-medium text-gray-900">
                       {selectedComplaint.name}
                     </p>

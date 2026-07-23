@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import { 
   Search, 
   Clock, 
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react'
 
 const TrackComplaint = () => {
+  const { user, userRole, userDepartment } = useAuth()
   const [referenceNumber, setReferenceNumber] = useState('')
   const [complaint, setComplaint] = useState(null)
   const [auditTrail, setAuditTrail] = useState([])
@@ -78,33 +80,58 @@ const TrackComplaint = () => {
     setSearched(true)
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('complaints')
-        .select('*')
-        .eq('reference_number', referenceNumber.toUpperCase())
-        .single()
+      const normalizedReference = referenceNumber.trim().toUpperCase()
+      const isDepartmentStaff = ['department', 'faculty', 'employee'].includes(userRole)
 
-      if (fetchError) {
-        if (fetchError.code === 'PGRST116') {
-          setError('No feedback found with this reference number.')
-        } else {
-          throw fetchError
+      if (isDepartmentStaff) {
+        const [assignedToResult, departmentResult] = await Promise.all([
+          supabase
+            .from('complaints')
+            .select('*')
+            .eq('reference_number', normalizedReference)
+            .eq('assigned_to', user.id)
+            .maybeSingle(),
+          supabase
+            .from('complaints')
+            .select('*')
+            .eq('reference_number', normalizedReference)
+            .eq('assigned_department', userDepartment)
+            .maybeSingle(),
+        ])
+
+        const queryErrors = [assignedToResult.error, departmentResult.error].filter(Boolean)
+        if (queryErrors.length === 2) throw queryErrors[0]
+        const staffComplaint = assignedToResult.data || departmentResult.data
+
+        if (!staffComplaint) {
+          setError('No feedback found in your department with this reference number.')
+          return
         }
-        setLoading(false)
+
+        const { data: staffAuditTrail, error: auditError } = await supabase
+          .from('audit_trail')
+          .select('*')
+          .eq('complaint_id', staffComplaint.id)
+          .order('created_at', { ascending: true })
+
+        if (auditError) throw auditError
+        setComplaint(staffComplaint)
+        setAuditTrail(staffAuditTrail || [])
         return
       }
 
-      setComplaint(data)
+      const { data, error: fetchError } = await supabase.rpc('get_public_ticket', {
+        tracking_reference: normalizedReference,
+      })
 
-      const { data: trailData } = await supabase
-        .from('audit_trail')
-        .select('*')
-        .eq('complaint_id', data.id)
-        .order('created_at', { ascending: true })
-
-      if (trailData) {
-        setAuditTrail(trailData)
+      if (fetchError) throw fetchError
+      if (!data?.complaint) {
+        setError('No feedback found with this reference number.')
+        return
       }
+
+      setComplaint(data.complaint)
+      setAuditTrail(data.auditTrail || [])
     } catch (err) {
       setError(err.message || 'Failed to fetch feedback. Please try again.')
     } finally {

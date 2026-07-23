@@ -50,7 +50,9 @@ const Home = () => {
 
   const generateReferenceNumber = () => {
     const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const random = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) =>
+      byte.toString(16).padStart(2, "0")
+    ).join("").toUpperCase();
     return `LDCU-${timestamp}-${random}`;
   };
 
@@ -177,7 +179,7 @@ const Home = () => {
 
       if (!allowed) {
         setError(
-          "You have already submitted a feedback today. Please try again tomorrow."
+          "You have already submitted feedback today. Please try again tomorrow."
         );
         setLoading(false);
         return;
@@ -202,9 +204,11 @@ const Home = () => {
         }
       }
 
-      const { data: complaintData, error: insertError } = await supabase
+      const complaintId = crypto.randomUUID();
+      const { error: insertError } = await supabase
         .from("complaints")
         .insert({
+          id: complaintId,
           reference_number: refNumber,
           name: personalDetails.isAnonymous
             ? "Anonymous"
@@ -216,13 +220,11 @@ const Home = () => {
           is_anonymous: personalDetails.isAnonymous || !personalDetails.name,
           attachment_url: uploadedUrls[0] || null,
           status: "submitted",
-        })
-        .select("id")
-        .single();
+        });
 
       if (insertError) throw insertError;
 
-      await recordSubmission(ipAddress, complaintData?.id);
+      await recordSubmission(ipAddress, complaintId);
 
       setReferenceNumber(refNumber);
       setShowPopup(true);
@@ -237,16 +239,16 @@ const Home = () => {
   const features = [
     {
       icon: FileText,
-      title: "Submit Complaints",
+      title: "Submit Feedback",
       description:
-        "Easily submit your concerns through our streamlined feedback form. Anonymous submissions are welcome.",
+        "Easily submit feedback through our streamlined form. Anonymous submissions are welcome.",
       color: "bg-maroon-800",
     },
     {
       icon: Shield,
       title: "Verified Process",
       description:
-        "All complaints are verified by the VP Admin to ensure legitimacy before being forwarded to departments.",
+        "All feedback is verified by the VP Admin before being forwarded to departments.",
       color: "bg-gold-600",
     },
     {
@@ -260,7 +262,7 @@ const Home = () => {
       icon: CheckCircle,
       title: "Resolution Focused",
       description:
-        "Dedicated department officers work to resolve your concerns efficiently and effectively.",
+        "Dedicated department officers work to resolve your feedback efficiently and effectively.",
       color: "bg-gold-600",
     },
   ];
@@ -269,7 +271,7 @@ const Home = () => {
     {
       number: "01",
       title: "Submit",
-      description: "Fill out the feedback form with your concerns",
+      description: "Complete the form and submit your feedback",
     },
     {
       number: "02",
@@ -309,8 +311,8 @@ const Home = () => {
             </h1>
             <p className="text-lg md:text-xl text-gray-300 mb-8">
               Liceo Cares is your dedicated platform for submitting and tracking
-              feedback. We ensure every concern is heard, verified, and
-              resolved efficiently.
+              feedback. We ensure every feedback submission is heard, verified,
+              and resolved efficiently.
             </p>
 
             {/* Chat-style complaint form */}
@@ -339,7 +341,7 @@ const Home = () => {
                     onChange={(e) => setComplaint(e.target.value)}
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}
-                    placeholder="Type your feedback here... What concern would you like to share?"
+                    placeholder="Type your feedback here... What feedback would you like to share?"
                     rows={3}
                     className="w-full bg-transparent text-white placeholder-gray-300 focus:outline-none resize-none"
                   />
@@ -611,8 +613,8 @@ const Home = () => {
               Why Use <span className="text-maroon-800">Liceo Cares</span>?
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Our feedback management system is designed to provide a
-              transparent and efficient way to address your concerns.
+              Our feedback management system provides a transparent and
+              efficient way to address your feedback.
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -644,7 +646,7 @@ const Home = () => {
               How It <span className="text-gold-600">Works</span>
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              A simple four-step process to get your concerns addressed
+              A simple four-step process to get your feedback addressed
             </p>
           </div>
           <div className="grid md:grid-cols-4 gap-8">
@@ -675,8 +677,8 @@ const Home = () => {
             Need to Track Your Feedback?
           </h2>
           <p className="text-lg text-gray-300 mb-8">
-            Already submitted a feedback? Use your tracking number to check the
-            status and get updates on your concern.
+            Already submitted feedback? Use your tracking number to check the
+            status and get updates on your feedback submission.
           </p>
           <Link
             to="/track"

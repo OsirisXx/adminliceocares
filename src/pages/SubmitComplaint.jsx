@@ -59,14 +59,16 @@ const SubmitComplaint = () => {
     {
       value: "security",
       label: "Security",
-      description: "Safety concerns, incidents",
+      description: "Safety feedback and incident reports",
     },
-    { value: "other", label: "Other", description: "General concerns" },
+    { value: "other", label: "Other", description: "General feedback" },
   ];
 
   const generateReferenceNumber = () => {
     const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const random = Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) =>
+      byte.toString(16).padStart(2, "0")
+    ).join("").toUpperCase();
     return `LDCU-${timestamp}-${random}`;
   };
 
@@ -119,7 +121,7 @@ const SubmitComplaint = () => {
       if (attachment) {
         const fileExt = attachment.name.split(".").pop();
         const fileName = `${refNumber}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("attachments")
           .upload(fileName, attachment);
 
@@ -133,9 +135,11 @@ const SubmitComplaint = () => {
         }
       }
 
-      const { data: insertedComplaint, error: insertError } = await supabase
+      const complaintId = crypto.randomUUID();
+      const { error: insertError } = await supabase
         .from("complaints")
         .insert({
+          id: complaintId,
           reference_number: refNumber,
           name: formData.isAnonymous ? "Anonymous" : formData.name,
           email: formData.email,
@@ -145,20 +149,9 @@ const SubmitComplaint = () => {
           is_anonymous: formData.isAnonymous,
           attachment_url: attachmentUrl,
           status: "submitted",
-        })
-        .select()
-        .single();
+        });
 
       if (insertError) throw insertError;
-
-      // Create initial audit trail entry
-      if (insertedComplaint) {
-        await supabase.from("audit_trail").insert({
-          complaint_id: insertedComplaint.id,
-          action: "Feedback Submitted",
-          details: `New ${formData.category} feedback submitted${formData.isAnonymous ? " anonymously" : ` by ${formData.name}`}`,
-        });
-      }
 
       setReferenceNumber(refNumber);
       setSuccess(true);
@@ -245,10 +238,10 @@ const SubmitComplaint = () => {
             <FileText size={32} className="text-gold-400" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">
-            Submit a Feedback
+            Submit Feedback
           </h1>
           <p className="text-gray-600 mt-2">
-            Fill out the form below to submit your concern
+            Fill out the form below to submit your feedback
           </p>
         </div>
 
@@ -425,7 +418,7 @@ const SubmitComplaint = () => {
                   required
                   rows={5}
                   className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-all duration-200 outline-none resize-none"
-                  placeholder="Please describe your concern in detail..."
+                  placeholder="Please describe your feedback in detail..."
                 />
               </div>
               <p className="text-sm text-gray-500 mt-1">

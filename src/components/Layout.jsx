@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
+import { TICKET_OPENED_EVENT } from "../lib/notificationEvents";
 import { AdminSidebar } from "./AdminSidebar.jsx";
 
 const Layout = ({ children }) => {
@@ -100,7 +101,6 @@ const Layout = ({ children }) => {
       }
 
       setNotifications(notifs);
-      setUnreadCount(notifs.length);
     } catch (err) {
       console.error("Error fetching notifications:", err);
     }
@@ -124,9 +124,8 @@ const Layout = ({ children }) => {
     if (type === 'audit') return;
 
     try {
-      // Optimistic update
+      // Optimistically remove the notification from the open list.
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      setUnreadCount(prev => Math.max(0, prev - 1));
 
       const { error } = await supabase
         .from('system_notifications')
@@ -177,15 +176,55 @@ const Layout = ({ children }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const isAdminWorkspace =
-    userRole === "admin" &&
+  useEffect(() => {
+    setUnreadCount(notifications.filter((notification) => !notification.read).length);
+  }, [notifications]);
+
+  useEffect(() => {
+    const handleTicketOpened = async (event) => {
+      const complaintId = event.detail?.complaintId;
+      if (!complaintId) return;
+
+      let { error } = await supabase.rpc('mark_my_ticket_notifications_read', {
+        ticket_id: complaintId,
+      });
+
+      // Keep existing deployments working until the new RPC migration is applied.
+      if (error) {
+        const fallback = await supabase
+          .from('system_notifications')
+          .update({ is_read: true })
+          .eq('reference_id', complaintId)
+          .eq('is_read', false);
+        error = fallback.error;
+      }
+
+      if (error) {
+        console.error('Error marking ticket notifications as read:', error);
+        return;
+      }
+
+      setNotifications((previous) =>
+        previous.filter(
+          (notification) => String(notification.reference_id) !== String(complaintId)
+        )
+      );
+    };
+
+    window.addEventListener(TICKET_OPENED_EVENT, handleTicketOpened);
+    return () => window.removeEventListener(TICKET_OPENED_EVENT, handleTicketOpened);
+  }, []);
+
+  const isStaffWorkspace =
+    ["admin", "department", "faculty", "employee"].includes(userRole) &&
     (location.pathname === "/admin" ||
+      location.pathname === "/department" ||
       location.pathname === "/track" ||
       location.pathname.startsWith("/ticket/"));
 
-  if (isAdminWorkspace) {
+  if (isStaffWorkspace) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-[#f8f8f7]">
         <AdminSidebar
           user={user}
           location={location}
@@ -198,11 +237,12 @@ const Layout = ({ children }) => {
           formatNotificationTime={formatNotificationTime}
           onSignOut={handleSignOut}
           collapsed={adminSidebarCollapsed}
+          userRole={userRole}
           onToggleCollapsed={() => setAdminSidebarCollapsed((isCollapsed) => !isCollapsed)}
         />
         <main
           className={`min-h-screen min-w-0 pt-16 transition-[padding] duration-300 lg:pt-0 ${
-            adminSidebarCollapsed ? "lg:pl-16" : "lg:pl-72"
+            adminSidebarCollapsed ? "lg:pl-0" : "lg:pl-64"
           }`}
         >
           {children}

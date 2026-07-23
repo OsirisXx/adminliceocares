@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { notifyTicketOpened } from "../lib/notificationEvents";
 import { useAuth } from "../contexts/AuthContext";
 import {
   sendTicketVerifiedEmail,
@@ -36,22 +37,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Columns,
-  TrendingUp,
 } from "lucide-react";
 import {
-  AreaChart,
   Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  BarChart,
-  Bar,
 } from "recharts";
 
 const AdminDashboard = () => {
@@ -59,6 +53,7 @@ const AdminDashboard = () => {
   const location = useLocation();
   const { user } = useAuth();
   const [complaints, setComplaints] = useState([]);
+  const [activityCounts, setActivityCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -73,13 +68,12 @@ const AdminDashboard = () => {
   const [staffLoading, setStaffLoading] = useState(false);
   const [remarks, setRemarks] = useState("");
   const [newStatus, setNewStatus] = useState("");
-  const [showStatusChangeSection, setShowStatusChangeSection] = useState(false);
   const [sortOrder, setSortOrder] = useState("newest");
-  const [viewMode, setViewMode] = useState("expanded");
+  const viewMode = "compact";
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [paginationEnabled, setPaginationEnabled] = useState(true);
-  const [columnCount, setColumnCount] = useState(1);
+  const paginationEnabled = true;
+  const columnCount = 1;
   const [departments, setDepartments] = useState([]);
   const [chartTimeRange, setChartTimeRange] = useState("all");
 
@@ -202,32 +196,46 @@ const AdminDashboard = () => {
     },
   };
 
-  useEffect(() => {
-    fetchComplaints();
-  }, [filterStatus]);
-
-  const fetchComplaints = async () => {
+  const fetchComplaints = useCallback(async () => {
     setLoading(true);
+    setActivityCounts({});
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from("complaints")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (filterStatus !== "all") {
-        query = query.eq("status", filterStatus);
-      }
-
-      const { data, error } = await query;
-
       if (error) throw error;
-      setComplaints(data || []);
+
+      const loadedComplaints = data || [];
+      setComplaints(loadedComplaints);
+
+      const complaintIds = loadedComplaints.map(({ id }) => id);
+      if (!complaintIds.length) return;
+
+      const { data: unreadNotifications, error: notificationError } = await supabase
+        .from("system_notifications")
+        .select("reference_id")
+        .eq("is_read", false)
+        .in("reference_id", complaintIds);
+
+      if (notificationError) throw notificationError;
+
+      const counts = {};
+      (unreadNotifications || []).forEach(({ reference_id: complaintId }) => {
+        counts[complaintId] = (counts[complaintId] || 0) + 1;
+      });
+      setActivityCounts(counts);
     } catch (err) {
       console.error("Error fetching concerns:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchComplaints();
+  }, [fetchComplaints]);
 
   const handleApprove = async () => {
     if (!selectedDepartment) {
@@ -262,7 +270,7 @@ const AdminDashboard = () => {
 
       await supabase.from("audit_trail").insert({
         complaint_id: selectedComplaint.id,
-        action: "Concern Verified",
+        action: "Feedback Verified",
         performed_by: user.id,
         details: `Assigned to ${
           departments.find((d) => d.value === selectedDepartment)?.label
@@ -290,7 +298,7 @@ const AdminDashboard = () => {
       fetchComplaints();
     } catch (err) {
       console.error("Error approving concern:", err);
-      alert("Failed to approve concern");
+      alert("Failed to approve feedback");
     } finally {
       setActionLoading(false);
     }
@@ -313,7 +321,7 @@ const AdminDashboard = () => {
 
       await supabase.from("audit_trail").insert({
         complaint_id: selectedComplaint.id,
-        action: "Concern Rejected",
+        action: "Feedback Rejected",
         performed_by: user.id,
         details: `Reason: ${remarks}`,
       });
@@ -333,7 +341,7 @@ const AdminDashboard = () => {
       fetchComplaints();
     } catch (err) {
       console.error("Error rejecting concern:", err);
-      alert("Failed to reject concern");
+      alert("Failed to reject feedback");
     } finally {
       setActionLoading(false);
     }
@@ -419,33 +427,11 @@ const AdminDashboard = () => {
         }
       }
 
-      // Also send to additional email if provided
-      if (
-        selectedComplaint.additional_email &&
-        selectedComplaint.additional_email !== selectedComplaint.email
-      ) {
-        try {
-          const emailResult = await sendTicketStatusChangedEmail({
-            to: selectedComplaint.additional_email,
-            referenceNumber: selectedComplaint.reference_number,
-            oldStatus:
-              statusLabels[selectedComplaint.status] ||
-              selectedComplaint.status,
-            newStatus: statusLabels[newStatus] || newStatus,
-            remarks: remarks,
-          });
-          console.log("Additional email sent result:", emailResult);
-        } catch (emailErr) {
-          console.error("Error sending additional email:", emailErr);
-        }
-      }
-
       setShowModal(false);
       setSelectedComplaint(null);
       setSelectedDepartment("");
       setRemarks("");
       setNewStatus("");
-      setShowStatusChangeSection(false);
       fetchComplaints();
     } catch (err) {
       console.error("Error changing status:", err);
@@ -453,6 +439,17 @@ const AdminDashboard = () => {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const openTicket = (complaint) => {
+    setActivityCounts((previous) => {
+      if (!previous[complaint.id]) return previous;
+      const next = { ...previous };
+      delete next[complaint.id];
+      return next;
+    });
+    notifyTicketOpened(complaint);
+    navigate(`/ticket/${complaint.reference_number}`);
   };
 
   const formatDate = (dateString) => {
@@ -504,20 +501,25 @@ const AdminDashboard = () => {
 
   const filteredComplaints = complaints
     .filter((complaint) => {
+      const normalizedSearch = searchQuery.trim().toLowerCase();
+      const searchableFields = [
+        complaint.reference_number,
+        complaint.name,
+        complaint.category,
+        complaint.description,
+      ];
       const matchesSearch =
-        !searchQuery ||
-        complaint.reference_number
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        complaint.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        complaint.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        complaint.description.toLowerCase().includes(searchQuery.toLowerCase());
-
+        !normalizedSearch ||
+        searchableFields.some((value) =>
+          String(value || "").toLowerCase().includes(normalizedSearch)
+        );
+      const matchesStatus =
+        filterStatus === "all" || complaint.status === filterStatus;
       const matchesCategory =
         filterCategory === "all" || complaint.category === filterCategory;
       const matchesDate = isWithinDateRange(complaint.created_at);
 
-      return matchesSearch && matchesCategory && matchesDate;
+      return matchesSearch && matchesStatus && matchesCategory && matchesDate;
     })
     .sort((a, b) => {
       const dateA = new Date(a.created_at);
@@ -557,71 +559,162 @@ const AdminDashboard = () => {
   };
 
   const statCards = [
-    { label: "Total", value: stats.total, accent: "bg-gray-700", valueClass: "text-gray-950" },
-    { label: "Pending", value: stats.submitted, accent: "bg-blue-500", valueClass: "text-blue-700" },
-    { label: "Verified", value: stats.verified, accent: "bg-gold-500", valueClass: "text-gold-700" },
-    { label: "In progress", value: stats.inProgress, accent: "bg-orange-500", valueClass: "text-orange-700" },
-    { label: "Backlog", value: stats.backlog, accent: "bg-purple-500", valueClass: "text-purple-700" },
-    { label: "Resolved", value: stats.resolved, accent: "bg-green-500", valueClass: "text-green-700" },
-    { label: "Closed", value: stats.closed, accent: "bg-gray-400", valueClass: "text-gray-700" },
-    { label: "Disputed", value: stats.disputed, accent: "bg-amber-500", valueClass: "text-amber-700" },
-    { label: "Rejected", value: stats.rejected, accent: "bg-red-500", valueClass: "text-red-700" },
+    {
+      label: "Needs review",
+      value: stats.submitted,
+      helper: "New submissions awaiting triage",
+      accent: "bg-blue-500",
+      valueClass: "text-gray-950",
+    },
+    {
+      label: "Active cases",
+      value: stats.verified + stats.inProgress + stats.backlog,
+      helper: "Verified, in progress, or backlog",
+      accent: "bg-gold-600",
+      valueClass: "text-gray-950",
+    },
+    {
+      label: "Completed",
+      value: stats.resolved + stats.closed,
+      helper: "Resolved or formally closed",
+      accent: "bg-green-500",
+      valueClass: "text-gray-950",
+    },
+    {
+      label: "Total received",
+      value: stats.total,
+      helper: "All feedback items in the system",
+      accent: "bg-maroon-800",
+      valueClass: "text-gray-950",
+    },
   ];
 
+  const statusSummary = [
+    { label: "Submitted", value: stats.submitted, dot: "bg-blue-500" },
+    { label: "Verified", value: stats.verified, dot: "bg-gold-600" },
+    { label: "In progress", value: stats.inProgress, dot: "bg-orange-500" },
+    { label: "Backlog", value: stats.backlog, dot: "bg-purple-500" },
+    { label: "Resolved", value: stats.resolved, dot: "bg-green-500" },
+    { label: "Closed", value: stats.closed, dot: "bg-gray-400" },
+    { label: "Disputed", value: stats.disputed, dot: "bg-amber-500" },
+    { label: "Rejected", value: stats.rejected, dot: "bg-red-500" },
+  ];
+
+  const chartRangeDays = {
+    "1d": 1,
+    "7d": 7,
+    "1m": 30,
+    "3m": 90,
+    "6m": 180,
+    "1y": 365,
+  };
+  const chartRangeLabels = {
+    "1d": "the last 24 hours",
+    "7d": "the last 7 days",
+    "1m": "the last 30 days",
+    "3m": "the last 3 months",
+    "6m": "the last 6 months",
+    "1y": "the last year",
+    all: "all time",
+  };
+  const chartCutoff = chartRangeDays[chartTimeRange]
+    ? new Date(Date.now() - chartRangeDays[chartTimeRange] * 24 * 60 * 60 * 1000)
+    : null;
+  const chartComplaints = complaints.filter((complaint) => {
+    const createdAt = new Date(complaint.created_at);
+    return !Number.isNaN(createdAt.getTime()) && (!chartCutoff || createdAt >= chartCutoff);
+  });
+  const chartTotal = chartComplaints.length;
+  const isHourlyChart = chartTimeRange === "1d";
+  const isMonthlyChart = ["3m", "6m", "1y", "all"].includes(chartTimeRange);
+  const chartDateLabelOptions = isHourlyChart
+    ? { hour: "numeric", minute: "2-digit" }
+    : isMonthlyChart
+      ? { month: "short", year: "numeric" }
+      : { month: "short", day: "numeric" };
+  const chartBuckets = new Map();
+
+  chartComplaints.forEach((complaint) => {
+    const bucketDate = new Date(complaint.created_at);
+
+    if (isHourlyChart) {
+      bucketDate.setMinutes(0, 0, 0);
+    } else if (isMonthlyChart) {
+      bucketDate.setDate(1);
+      bucketDate.setHours(0, 0, 0, 0);
+    } else {
+      bucketDate.setHours(0, 0, 0, 0);
+    }
+
+    const timestamp = bucketDate.getTime();
+    const bucket = chartBuckets.get(timestamp) || {
+      date: bucketDate.toLocaleDateString("en-US", chartDateLabelOptions),
+      timestamp,
+      count: 0,
+    };
+    bucket.count += 1;
+    chartBuckets.set(timestamp, bucket);
+  });
+
+  const chartData = [...chartBuckets.values()].sort((a, b) => a.timestamp - b.timestamp);
+
   return (
-    <div id="overview" className="min-h-[calc(100vh-200px)] scroll-mt-20 bg-[#f7f7f8] px-4 py-8 sm:px-6 lg:px-8 lg:scroll-mt-8">
-      <div className="mx-auto max-w-[1440px]">
+    <div id="overview" className="min-h-screen scroll-mt-20 bg-[#f8f8f7] px-4 py-6 sm:px-6 lg:px-8 lg:scroll-mt-8">
+      <div className="mx-auto max-w-[1480px]">
         {/* Workspace header */}
-        <header className="mb-7 flex flex-col gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-maroon-800 shadow-sm">
-              <Shield size={21} className="text-gold-400" />
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-xs text-gray-500">
+              <span>Liceo Cares</span>
+              <span aria-hidden="true">/</span>
+              <span className="font-medium text-gray-700">Administration</span>
             </div>
-            <div>
-              <p className="mb-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-maroon-700">Administration</p>
-              <h1 className="text-2xl font-semibold tracking-tight text-gray-950">Admin Dashboard</h1>
-              <p className="text-sm text-gray-500">Review, verify, and route incoming concerns.</p>
-            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-950 sm:text-[28px]">Overview</h1>
+            <p className="mt-1 text-sm text-gray-500">Monitor intake, review new feedback, and keep cases moving.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-2 text-xs font-medium text-gray-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-              Concern queue
-            </span>
-            <button
-              type="button"
-              onClick={fetchComplaints}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-maroon-300 hover:bg-maroon-50 hover:text-maroon-800"
-            >
-              <RefreshCw size={16} />
-              Refresh
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={fetchComplaints}
+            className="inline-flex h-9 items-center justify-center gap-2 self-start rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-400 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-700 focus-visible:ring-offset-2 sm:self-auto"
+          >
+            <RefreshCw size={15} />
+            Refresh data
+          </button>
         </header>
 
-        {/* Queue summary */}
-        <section aria-label="Concern status summary" className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
-          {statCards.map(({ label, value, accent, valueClass }) => (
-            <div
-              key={label}
-              className="relative overflow-hidden rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:border-maroon-200"
-            >
-              <span className={`absolute inset-y-0 left-0 w-1 ${accent}`} />
-              <p className="truncate pl-1 text-xs font-medium text-gray-500">{label}</p>
-              <p className={`pl-1 pt-1 text-2xl font-semibold tracking-tight ${valueClass}`}>{value}</p>
-            </div>
-          ))}
+        {/* Operational summary */}
+        <section aria-label="Feedback operations summary" className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="grid divide-y divide-gray-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+            {statCards.map(({ label, value, helper, accent, valueClass }) => (
+              <div key={label} className="relative px-5 py-4 sm:px-6">
+                <span className={`absolute inset-x-0 top-0 h-0.5 ${accent}`} aria-hidden="true" />
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500">{label}</p>
+                    <p className={`mt-1 text-3xl font-semibold tracking-tight ${valueClass}`}>{value}</p>
+                  </div>
+                  <span className={`mt-1 h-2 w-2 rounded-full ${accent}`} aria-hidden="true" />
+                </div>
+                <p className="mt-2 text-xs text-gray-500">{helper}</p>
+              </div>
+            ))}
+          </div>
         </section>
 
-        {/* Complaints Trend Area Chart */}
-        <div id="analytics" className="scroll-mt-20 mb-8 rounded-lg border border-gray-200 bg-white shadow-sm lg:scroll-mt-8">
+        <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          {/* Complaint volume trend */}
+          <section
+            id="analytics"
+            aria-labelledby="complaint-volume-title"
+            className="scroll-mt-20 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:scroll-mt-8"
+          >
           <div className="flex flex-col gap-4 border-b border-gray-100 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Complaints Overview
+              <h3 id="complaint-volume-title" className="text-lg font-semibold text-gray-900">
+                Feedback over time
               </h3>
               <p className="text-sm text-gray-500">
-                Showing feedback statistics by status
+                New feedback received by date. Current status totals are shown above.
               </p>
             </div>
             <div className="flex flex-wrap gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
@@ -636,6 +729,8 @@ const AdminDashboard = () => {
               ].map((range) => (
                 <button
                   key={range.value}
+                  type="button"
+                  aria-pressed={chartTimeRange === range.value}
                   onClick={() => setChartTimeRange(range.value)}
                   className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                     chartTimeRange === range.value
@@ -648,192 +743,120 @@ const AdminDashboard = () => {
               ))}
             </div>
           </div>
+
           <div className="p-6 pt-0">
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={(() => {
-                    // Filter complaints by time range
-                    const now = new Date();
-                    let filteredComplaints = complaints;
-
-                    if (chartTimeRange !== "all") {
-                      const ranges = {
-                        "1d": 1,
-                        "7d": 7,
-                        "1m": 30,
-                        "3m": 90,
-                        "6m": 180,
-                        "1y": 365,
-                      };
-                      const daysAgo = ranges[chartTimeRange] || 365;
-                      const cutoffDate = new Date(
-                        now.getTime() - daysAgo * 24 * 60 * 60 * 1000
-                      );
-                      filteredComplaints = complaints.filter(
-                        (c) => new Date(c.created_at) >= cutoffDate
-                      );
-                    }
-
-                    // Calculate stats for filtered data
-                    return [
-                      {
-                        name: "Submitted",
-                        count: filteredComplaints.filter(
-                          (c) => c.status === "submitted"
-                        ).length,
-                        fill: "#3B82F6",
-                      },
-                      {
-                        name: "Verified",
-                        count: filteredComplaints.filter(
-                          (c) => c.status === "verified"
-                        ).length,
-                        fill: "#D4AF37",
-                      },
-                      {
-                        name: "In Progress",
-                        count: filteredComplaints.filter(
-                          (c) => c.status === "in_progress"
-                        ).length,
-                        fill: "#F97316",
-                      },
-                      {
-                        name: "Backlog",
-                        count: filteredComplaints.filter(
-                          (c) => c.status === "backlog"
-                        ).length,
-                        fill: "#8B5CF6",
-                      },
-                      {
-                        name: "Resolved",
-                        count: filteredComplaints.filter(
-                          (c) => c.status === "resolved"
-                        ).length,
-                        fill: "#22C55E",
-                      },
-                      {
-                        name: "Closed",
-                        count: filteredComplaints.filter(
-                          (c) => c.status === "closed"
-                        ).length,
-                        fill: "#6B7280",
-                      },
-                      {
-                        name: "Disputed",
-                        count: filteredComplaints.filter(
-                          (c) => c.status === "disputed"
-                        ).length,
-                        fill: "#F59E0B",
-                      },
-                      {
-                        name: "Rejected",
-                        count: filteredComplaints.filter(
-                          (c) => c.status === "rejected"
-                        ).length,
-                        fill: "#EF4444",
-                      },
-                    ];
-                  })()}
-                  margin={{ left: -20, right: 12, top: 10, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    vertical={false}
-                    strokeDasharray="3 3"
-                    stroke="#f0f0f0"
-                  />
-                  <XAxis
-                    dataKey="name"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(value) => value.slice(0, 3)}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tickCount={5}
-                    allowDecimals={false}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid #e5e7eb",
-                      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                    }}
-                    formatter={(value, name) => [value, "Count"]}
-                  />
-                  <Area
-                    dataKey="count"
-                    type="monotone"
-                    fill="#7C2D2D"
-                    fillOpacity={0.4}
-                    stroke="#7C2D2D"
-                    strokeWidth={2}
-                    name="Complaints"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            <div className="h-72" role="img" aria-label="New feedback received over time">
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ left: -20, right: 12, top: 10, bottom: 0 }}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      minTickGap={28}
+                      tick={{ fontSize: 11, fill: "#6b7280" }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickCount={5}
+                      allowDecimals={false}
+                      tick={{ fontSize: 11, fill: "#6b7280" }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: "8px",
+                        border: "1px solid #e5e7eb",
+                        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                      }}
+                      labelFormatter={(label) => `Received: ${label}`}
+                      formatter={(value) => [
+                        `${value} ${value === 1 ? "feedback item" : "feedback items"}`,
+                        "New feedback",
+                      ]}
+                    />
+                    <Area
+                      dataKey="count"
+                      type="monotone"
+                      fill="#7C2D2D"
+                      fillOpacity={0.4}
+                      stroke="#7C2D2D"
+                      strokeWidth={2}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
+                      name="New feedback"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-center">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">No feedback received</p>
+                    <p className="mt-1 text-xs text-gray-500">There is no feedback from {chartRangeLabels[chartTimeRange]}.</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-          <div className="px-6 pb-6 pt-2 border-t border-gray-100">
-            <div className="flex w-full items-start gap-2 text-sm">
-              <div className="grid gap-2">
-                <div className="flex items-center gap-2 leading-none font-medium text-gray-900">
-                  Total: {stats.total} complaints{" "}
-                  <TrendingUp className="h-4 w-4 text-green-500" />
-                </div>
-                <div className="text-gray-500 flex flex-wrap items-center gap-2 leading-none text-xs">
-                  <span className="text-blue-600">
-                    {stats.submitted} submitted
-                  </span>{" "}
-                  •
-                  <span className="text-yellow-600">
-                    {stats.verified} verified
-                  </span>{" "}
-                  •
-                  <span className="text-orange-600">
-                    {stats.inProgress} in progress
-                  </span>{" "}
-                  •
-                  <span className="text-purple-600">
-                    {stats.backlog || 0} backlog
-                  </span>{" "}
-                  •
-                  <span className="text-green-600">
-                    {stats.resolved} resolved
-                  </span>{" "}
-                  •<span className="text-gray-600">{stats.closed} closed</span>
-                </div>
-              </div>
-            </div>
+
+          <div className="flex flex-col gap-1 border-t border-gray-100 px-6 pb-6 pt-4 text-xs text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+            <span className="font-medium text-gray-900">
+              {chartTotal} {chartTotal === 1 ? "feedback item" : "feedback items"} received {chartRangeLabels[chartTimeRange]}
+            </span>
+            <span>Hover a point to see the exact date and total.</span>
           </div>
+          </section>
+
+          <aside className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" aria-labelledby="status-summary-title">
+            <div className="border-b border-gray-100 px-5 py-4">
+              <h2 id="status-summary-title" className="text-sm font-semibold text-gray-900">Queue by status</h2>
+              <p className="mt-1 text-xs text-gray-500">Current distribution across the full queue.</p>
+            </div>
+            <div className="divide-y divide-gray-100 px-5">
+              {statusSummary.map((item) => (
+                <div key={item.label} className="flex items-center justify-between py-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className={`h-2 w-2 rounded-full ${item.dot}`} aria-hidden="true" />
+                    <span className="text-sm text-gray-600">{item.label}</span>
+                  </div>
+                  <span className="tabular-nums text-sm font-semibold text-gray-900">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </aside>
         </div>
 
-        {/* Filters */}
-        <div id="concerns" className="scroll-mt-20 bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-6 lg:scroll-mt-8">
-          <div className="flex flex-col gap-4">
-            {/* Search Row */}
+        <section id="concerns" className="mb-4 scroll-mt-20 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:scroll-mt-8">
+          <div className="flex flex-col gap-1 border-b border-gray-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Feedback queue</h2>
+              <p className="mt-0.5 text-xs text-gray-500">Search, review, and route submitted feedback.</p>
+            </div>
+            <span className="mt-2 text-xs font-medium text-gray-500 sm:mt-0">
+              {filteredComplaints.length} result{filteredComplaints.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="flex flex-col gap-3 p-4 sm:p-5">
             <div className="relative">
               <Search
-                size={20}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={17}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               />
               <input
-                type="text"
+                type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by reference, name, category, description..."
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none"
+                placeholder="Search reference, person, category, or description"
+                aria-label="Search feedback"
+                className="h-10 w-full rounded-md border border-gray-300 bg-white pl-9 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-700/20"
               />
             </div>
-            {/* Filter Row */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center space-x-2">
-                <Filter size={18} className="text-gray-400" />
-                <span className="text-sm text-gray-500">Filters:</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="mr-1 flex items-center gap-1.5">
+                <Filter size={15} className="text-gray-400" />
+                <span className="text-xs font-medium text-gray-500">Filter</span>
               </div>
               <select
                 value={filterStatus}
@@ -844,6 +867,7 @@ const AdminDashboard = () => {
                 <option value="submitted">Pending</option>
                 <option value="verified">Verified</option>
                 <option value="in_progress">In Progress</option>
+                <option value="backlog">Backlog</option>
                 <option value="resolved">Resolved</option>
                 <option value="closed">Closed</option>
                 <option value="disputed">Disputed</option>
@@ -872,139 +896,71 @@ const AdminDashboard = () => {
                 ))}
               </select>
               <button
-                onClick={fetchComplaints}
-                className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                title="Refresh"
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterStatus("all");
+                  setFilterCategory("all");
+                  setFilterDateRange("all");
+                }}
+                className="h-9 rounded-md px-3 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900"
               >
-                <RefreshCw size={18} className="text-gray-600" />
+                Clear filters
               </button>
             </div>
 
-            {/* Layout & Sort Controls */}
-            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100">
-              {/* Sort Order */}
+            <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3">
               <div className="flex items-center gap-2">
-                <ArrowUpDown size={16} className="text-gray-400" />
+                <ArrowUpDown size={15} className="text-gray-400" />
                 <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm"
+                  aria-label="Sort feedback"
+                  className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:border-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-700/20"
                 >
-                  <option value="newest">Newest First</option>
-                  <option value="oldest">Oldest First</option>
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
                 </select>
               </div>
-
-              {/* View Mode Toggle */}
-              <button
-                onClick={() =>
-                  setViewMode(viewMode === "expanded" ? "compact" : "expanded")
-                }
-                className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium transition-colors hover:bg-gray-200"
-                title={
-                  viewMode === "expanded"
-                    ? "Switch to Compact View"
-                    : "Switch to Expanded View"
-                }
+              <select
+                value={itemsPerPage}
+                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                aria-label="Feedback items per page"
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:border-maroon-700 focus:outline-none focus:ring-2 focus:ring-maroon-700/20"
               >
-                {viewMode === "expanded" ? (
-                  <>
-                    <Minimize2 size={16} className="text-gray-600" />
-                    <span className="text-gray-700">Minimize</span>
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 size={16} className="text-maroon-800" />
-                    <span className="text-maroon-800">Expand</span>
-                  </>
-                )}
-              </button>
-
-              {/* Column Count Selector */}
-              <div className="flex items-center gap-2">
-                <Columns size={16} className="text-gray-400" />
-                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                  {[1, 2, 3, 4].map((cols) => (
-                    <button
-                      key={cols}
-                      onClick={() => setColumnCount(cols)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                        columnCount === cols
-                          ? "bg-white shadow-sm text-maroon-800"
-                          : "text-gray-500 hover:text-gray-700"
-                      }`}
-                    >
-                      {cols}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Pagination Toggle */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPaginationEnabled(!paginationEnabled)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    paginationEnabled
-                      ? "bg-maroon-100 text-maroon-800"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  <LayoutGrid size={16} />
-                  <span>Pagination {paginationEnabled ? "On" : "Off"}</span>
-                </button>
-              </div>
-
-              {/* Items Per Page - only show when pagination is enabled */}
-              {paginationEnabled && (
-                <div className="flex items-center gap-2">
-                  <LayoutList size={16} className="text-gray-400" />
-                  <select
-                    value={itemsPerPage}
-                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 outline-none bg-white text-sm"
-                  >
-                    <option value={5}>5 per page</option>
-                    <option value={10}>10 per page</option>
-                    <option value={20}>20 per page</option>
-                    <option value={50}>50 per page</option>
-                  </select>
-                </div>
-              )}
-
-              <span className="text-sm text-gray-500 ml-auto">
-                {paginationEnabled
-                  ? `Showing ${paginatedComplaints.length} of ${filteredComplaints.length}`
-                  : `${filteredComplaints.length}`}{" "}
-                concern{filteredComplaints.length !== 1 ? "s" : ""}
+                <option value={5}>5 per page</option>
+                <option value={10}>10 per page</option>
+                <option value={20}>20 per page</option>
+                <option value={50}>50 per page</option>
+              </select>
+              <span className="ml-auto text-xs text-gray-500">
+                Showing {paginatedComplaints.length} of {filteredComplaints.length}{" "}
+                {filteredComplaints.length === 1 ? "feedback item" : "feedback items"}
               </span>
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Complaints Newsfeed */}
-        <div
-          className={`${
-            columnCount === 1
-              ? "space-y-4"
-              : `grid gap-4 ${
-                  columnCount === 2
-                    ? "grid-cols-1 md:grid-cols-2"
-                    : columnCount === 3
-                    ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-                    : "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
-                }`
-          }`}
-        >
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="hidden grid-cols-[minmax(0,1fr)_120px_180px_88px] items-center gap-4 border-b border-gray-200 bg-gray-50/80 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 lg:grid">
+            <span>Concern</span>
+            <span>Status</span>
+            <span>Received</span>
+            <span className="text-right">Actions</span>
+          </div>
           {loading ? (
-            <div className="bg-white rounded-xl p-12 text-center border border-gray-100 shadow-sm">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-maroon-800 border-t-transparent mx-auto"></div>
-              <p className="text-gray-500 mt-4">Loading concerns...</p>
+            <div className="p-12 text-center">
+              <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-maroon-800 border-t-transparent"></div>
+              <p className="mt-3 text-sm text-gray-500">Loading concerns...</p>
             </div>
           ) : paginatedComplaints.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center border border-gray-100 shadow-sm">
-              <FileText size={48} className="text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No concerns found</p>
+            <div className="p-12 text-center">
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100">
+                <FileText size={19} className="text-gray-400" />
+              </div>
+              <p className="mt-3 text-sm font-medium text-gray-700">No concerns found</p>
+              <p className="mt-1 text-xs text-gray-500">Try changing or clearing the current filters.</p>
             </div>
           ) : (
             paginatedComplaints.map((complaint) => {
@@ -1015,49 +971,63 @@ const AdminDashboard = () => {
                 return (
                   <div
                     key={complaint.id}
-                    className="bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 p-3"
+                    className="border-b border-gray-100 bg-white px-4 py-3 transition-colors last:border-b-0 hover:bg-gray-50/80 sm:px-5"
                   >
                     {columnCount === 1 ? (
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
+                      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_120px_180px_88px] lg:items-center lg:gap-4">
+                        <div className="min-w-0">
+                          <div className="mb-1 flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-[11px] font-medium text-maroon-800">
+                              {complaint.reference_number}
+                            </span>
+                            <span className="text-[11px] capitalize text-gray-500">{complaint.category}</span>
+                            {complaint.attachment_url && (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-gray-400">
+                                <Image size={11} /> Attachment
+                              </span>
+                            )}
+                          </div>
+                          <p className="truncate text-sm font-medium text-gray-900">{complaint.name}</p>
+                          <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{complaint.description}</p>
+                        </div>
+                        <div>
                           <span
-                            className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${status?.color}`}
+                            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${status?.color}`}
                           >
                             <StatusIcon size={12} />
                             <span>{status?.label}</span>
                           </span>
-                          <span className="font-mono text-xs text-maroon-800 bg-maroon-50 px-2 py-1 rounded">
-                            {complaint.reference_number}
-                          </span>
-                          <span className="text-sm text-gray-900 truncate font-medium">
-                            {complaint.name}
-                          </span>
-                          <span className="text-xs text-gray-500 capitalize hidden sm:inline">
-                            {complaint.category}
-                          </span>
-                          <span className="text-xs text-gray-400 hidden md:inline">
-                            {formatDate(complaint.created_at)}
-                          </span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                          <Calendar size={13} className="shrink-0 text-gray-400" />
+                          <span>{formatDate(complaint.created_at)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 lg:justify-end">
                           <button
-                            onClick={() =>
-                              navigate(`/ticket/${complaint.reference_number}`)
-                            }
-                            className="p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
-                            title="View Activity"
+                            type="button"
+                            onClick={() => openTicket(complaint)}
+                            className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 hover:border-gray-400 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-700"
+                            title={`View activity${activityCounts[complaint.id] ? ` (${activityCounts[complaint.id]})` : ""}`}
+                            aria-label={`View activity for ${complaint.reference_number}${activityCounts[complaint.id] ? `, ${activityCounts[complaint.id]} unread notifications` : ""}`}
                           >
-                            <MessageSquare size={16} />
+                            <MessageSquare size={15} />
+                            {activityCounts[complaint.id] > 0 && (
+                              <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-maroon-800 px-1 text-[10px] font-semibold leading-none text-white">
+                                {activityCounts[complaint.id] > 99 ? "99+" : activityCounts[complaint.id]}
+                              </span>
+                            )}
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               setSelectedComplaint(complaint);
                               setShowModal(true);
                             }}
-                            className="p-2 bg-maroon-800 text-white rounded-lg hover:bg-maroon-700 transition-colors"
-                            title="View Details"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-maroon-800 text-white hover:bg-maroon-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-700 focus-visible:ring-offset-1"
+                            title="Review concern"
+                            aria-label={`Review ${complaint.reference_number}`}
                           >
-                            <Eye size={16} />
+                            <Eye size={15} />
                           </button>
                         </div>
                       </div>
@@ -1085,13 +1055,18 @@ const AdminDashboard = () => {
                         </p>
                         <div className="flex items-center gap-2 mt-auto">
                           <button
-                            onClick={() =>
-                              navigate(`/ticket/${complaint.reference_number}`)
-                            }
-                            className="flex-1 p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-xs flex items-center justify-center gap-1"
+                            onClick={() => openTicket(complaint)}
+                            className="relative flex-1 p-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-xs flex items-center justify-center gap-1"
                             title="View Activity"
                           >
-                            <MessageSquare size={14} />
+                            <span className="relative inline-flex">
+                              <MessageSquare size={14} />
+                              {activityCounts[complaint.id] > 0 && (
+                                <span className="absolute -top-2 -right-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-maroon-800 px-1 text-[9px] font-semibold leading-none text-white">
+                                  {activityCounts[complaint.id] > 99 ? "99+" : activityCounts[complaint.id]}
+                                </span>
+                              )}
+                            </span>
                             <span className={columnCount >= 3 ? "hidden" : ""}>
                               Activity
                             </span>
@@ -1282,15 +1257,20 @@ const AdminDashboard = () => {
                         }`}
                       >
                         <button
-                          onClick={() =>
-                            navigate(`/ticket/${complaint.reference_number}`)
-                          }
-                          className={`flex-1 inline-flex items-center justify-center space-x-1 ${
+                          onClick={() => openTicket(complaint)}
+                          className={`relative flex-1 inline-flex items-center justify-center space-x-1 ${
                             isNarrowColumn ? "p-2" : "px-3 py-2"
                           } border border-maroon-800 text-maroon-800 rounded-lg hover:bg-maroon-50 transition-colors text-xs font-medium`}
                           title="View Activity"
                         >
-                          <MessageSquare size={isNarrowColumn ? 14 : 16} />
+                          <span className="relative inline-flex">
+                            <MessageSquare size={isNarrowColumn ? 14 : 16} />
+                            {activityCounts[complaint.id] > 0 && (
+                              <span className="absolute -top-2 -right-2 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-maroon-800 px-1 text-[9px] font-semibold leading-none text-white">
+                                {activityCounts[complaint.id] > 99 ? "99+" : activityCounts[complaint.id]}
+                              </span>
+                            )}
+                          </span>
                           {!isNarrowColumn && <span>Activity</span>}
                         </button>
                         <button
@@ -1317,73 +1297,95 @@ const AdminDashboard = () => {
 
         {/* Pagination */}
         {paginationEnabled && totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-6">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft size={18} className="text-gray-600" />
-            </button>
-            <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
+          <nav className="mt-4 flex items-center justify-between gap-3" aria-label="Concern queue pagination">
+            <p className="hidden text-xs text-gray-500 sm:block">Page {currentPage} of {totalPages}</p>
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Previous page"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, index) => {
+                let pageNumber;
+                if (totalPages <= 5) pageNumber = index + 1;
+                else if (currentPage <= 3) pageNumber = index + 1;
+                else if (currentPage >= totalPages - 2) pageNumber = totalPages - 4 + index;
+                else pageNumber = currentPage - 2 + index;
+
                 return (
                   <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-10 h-10 rounded-lg font-medium transition-colors ${
-                      currentPage === pageNum
+                    key={pageNumber}
+                    type="button"
+                    onClick={() => setCurrentPage(pageNumber)}
+                    aria-current={currentPage === pageNumber ? "page" : undefined}
+                    className={`inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2 text-sm font-medium ${
+                      currentPage === pageNumber
                         ? "bg-maroon-800 text-white"
-                        : "border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        : "border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
                     }`}
                   >
-                    {pageNum}
+                    {pageNumber}
                   </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Next page"
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight size={18} className="text-gray-600" />
-            </button>
-          </div>
+          </nav>
         )}
 
         {/* Modal */}
         {showModal && selectedComplaint && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-              {/* Modal Header */}
-              <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
+          <div
+            className="fixed inset-0 z-50 flex justify-end bg-gray-950/45 backdrop-blur-[1px]"
+            onClick={() => {
+              setShowModal(false);
+              setSelectedComplaint(null);
+              setSelectedDepartment("");
+              setSelectedStaff("");
+              setRemarks("");
+              setNewStatus("");
+            }}
+            role="presentation"
+          >
+            <div
+              className="flex h-full w-full max-w-5xl flex-col overflow-hidden border-l border-gray-200 bg-white shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="concern-drawer-title"
+            >
+              <div className="z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4 sm:px-6">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Concern Details
-                  </h2>
-                  <p className="text-sm text-gray-500 font-mono">
-                    {selectedComplaint.reference_number}
-                  </p>
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${statusConfig[selectedComplaint.status]?.color}`}>
+                      {statusConfig[selectedComplaint.status]?.label || selectedComplaint.status}
+                    </span>
+                    <span className="font-mono text-xs text-gray-500">{selectedComplaint.reference_number}</span>
+                  </div>
+                  <h2 id="concern-drawer-title" className="text-lg font-semibold tracking-tight text-gray-950">Review concern</h2>
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowModal(false);
                     setSelectedComplaint(null);
                     setSelectedDepartment("");
                     setRemarks("");
                   }}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon-700"
+                  aria-label="Close concern details"
                 >
                   <X size={20} className="text-gray-500" />
                 </button>
@@ -1645,7 +1647,8 @@ const AdminDashboard = () => {
                             onClick={handleApprove}
                             disabled={
                               actionLoading ||
-                              (!selectedDepartment && !selectedStaff)
+                              !selectedDepartment ||
+                              !selectedStaff
                             }
                             className="w-full px-4 py-3 bg-maroon-800 text-white rounded-xl font-medium hover:bg-maroon-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >

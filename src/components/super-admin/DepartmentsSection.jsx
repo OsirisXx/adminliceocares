@@ -174,7 +174,10 @@ const DepartmentsSection = ({
                   </div>
                   <div className="flex items-center gap-1.5 text-sm text-maroon-700 font-medium">
                     <FileText size={14} />
-                    <span>{deptComplaints.length} complaints</span>
+                    <span>
+                      {deptComplaints.length}{" "}
+                      {deptComplaints.length === 1 ? "feedback item" : "feedback items"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -196,7 +199,7 @@ const DepartmentsSection = ({
               <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Department</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Code</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Staff</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Complaints</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Feedback</th>
               <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
             </tr>
           </thead>
@@ -276,7 +279,12 @@ const DepartmentsSection = ({
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">{selectedDept.name}</h2>
-                  <p className="text-sm text-gray-500">{getDeptComplaints(selectedDept.code).length} complaints</p>
+                  <p className="text-sm text-gray-500">
+                    {getDeptComplaints(selectedDept.code).length}{" "}
+                    {getDeptComplaints(selectedDept.code).length === 1
+                      ? "feedback item"
+                      : "feedback items"}
+                  </p>
                 </div>
               </div>
               <button
@@ -293,7 +301,7 @@ const DepartmentsSection = ({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
-                  placeholder="Search complaints..."
+                  placeholder="Search feedback..."
                   value={complaintSearch}
                   onChange={(e) => setComplaintSearch(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500"
@@ -346,7 +354,7 @@ const DepartmentsSection = ({
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center">
                         <FileText size={48} className="mx-auto mb-4 text-gray-300" />
-                        <p className="text-gray-500">No complaints found for this department</p>
+                        <p className="text-gray-500">No feedback found for this department</p>
                       </td>
                     </tr>
                   )}

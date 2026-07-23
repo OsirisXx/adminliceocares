@@ -108,7 +108,7 @@ const OverviewSection = ({ stats, recentActivity, loading, complaints = [] }) =>
           color="bg-green-500"
         />
         <StatCard
-          title="Total Complaints"
+          title="Total Feedback"
           value={stats.totalComplaints || 0}
           icon={FileText}
           color="bg-maroon-700"
@@ -127,7 +127,7 @@ const OverviewSection = ({ stats, recentActivity, loading, complaints = [] }) =>
         <div className="bg-white rounded-xl border border-gray-200">
           <div className="p-6 pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Complaints Overview</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Feedback</h2>
               <p className="text-sm text-gray-500">Showing feedback statistics by status</p>
             </div>
             <div className="flex flex-wrap gap-1">
@@ -201,7 +201,7 @@ const OverviewSection = ({ stats, recentActivity, loading, complaints = [] }) =>
                     fillOpacity={0.4}
                     stroke="#7C2D2D"
                     strokeWidth={2}
-                    name="Complaints"
+                    name="Feedback"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -211,7 +211,9 @@ const OverviewSection = ({ stats, recentActivity, loading, complaints = [] }) =>
             <div className="flex w-full items-start gap-2 text-sm">
               <div className="grid gap-2">
                 <div className="flex items-center gap-2 leading-none font-medium text-gray-900">
-                  Total: {filteredStats.total} complaints <TrendingUp className="h-4 w-4 text-green-500" />
+                  Total: {filteredStats.total}{" "}
+                  {filteredStats.total === 1 ? "feedback item" : "feedback items"}{" "}
+                  <TrendingUp className="h-4 w-4 text-green-500" />
                 </div>
                 <div className="text-gray-500 flex flex-wrap items-center gap-2 leading-none text-xs">
                   <span className="text-blue-600">{filteredStats.submitted} submitted</span> •
